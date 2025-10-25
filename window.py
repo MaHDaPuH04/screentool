@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QCheckBox, QGroupBox,
-                             QFileDialog, QMessageBox, QProgressBar, QDialog)
+                             QFileDialog, QMessageBox, QProgressBar)
 from PyQt6.QtCore import Qt, pyqtSignal
 from resource_path import resource_path
 from PyQt6.QtGui import QFont, QIcon
@@ -28,6 +28,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.screenshot_manager = shot.ScreenshotManager()
+        self.screenshot_manager.main_window = self
         self.excel_exporter = ExcelExporter()
         
         # Инициализируем менеджеры
@@ -50,6 +51,7 @@ class MainWindow(QMainWindow):
         self.ui_manager.unlock_ui_after_operation()
 
     def show_ip_input_dialog(self):
+        from PyQt6.QtWidgets import QDialog
         """Показывает диалог ввода IP и возвращает результат"""
         dialog = IPInputDialog(self)
         result = dialog.exec()
@@ -140,10 +142,22 @@ class MainWindow(QMainWindow):
         # Всегда разблокируем UI после диалога
         self.ui_manager.unlock_ui_after_operation()
 
+    #Методы управления окном
+    def minimize_window(self):
+        """Сворачивает окно приложения"""
+        self.showMinimized()
+        logger.debug("Окно приложения свернуто")
+    
+    def restore_window(self):
+        """Восстанавливает окно приложения"""
+        self.showNormal()
+        self.activateWindow()  # Активируем окно
+        self.raise_()  # Поднимаем на передний план
+        logger.debug("Окно приложения восстановлено")
 
     def setup_ui(self):
-        self.setWindowTitle("Auto Screenshot Tool v 1.0.3")
-        self.setFixedSize(500, 400)
+        self.setWindowTitle("Auto Screenshot Tool v 1.0.4")
+        self.setFixedSize(500, 460)
 
         # Центральный виджет
         central_widget = QWidget()
@@ -165,9 +179,11 @@ class MainWindow(QMainWindow):
         settings_layout = QVBoxLayout()
 
         # Переключатели
+        self.delete_last_checkbox = QCheckBox("Delete для удаления последнего скриншота")
         self.capture_checkbox = QCheckBox("Включить захват активного окна")
         self.hotkey_checkbox = QCheckBox("Включить горячую клавишу Insert(Print Screen)")
 
+        settings_layout.addWidget(self.delete_last_checkbox)
         settings_layout.addWidget(self.capture_checkbox)
         settings_layout.addWidget(self.hotkey_checkbox)
         settings_group.setLayout(settings_layout)
@@ -217,7 +233,7 @@ class MainWindow(QMainWindow):
                     background-color: #C0C0C0;
                 }
             """)
-        self.ip_btn.setToolTip("Настройка IP адреса VM")
+        self.ip_btn.setToolTip("Можешь вписать, но пока не функциональна")
 
         # Кнопка "Экспорт в Excel"
         self.excel_btn = QPushButton("Экспорт в Excel")
@@ -301,9 +317,76 @@ class MainWindow(QMainWindow):
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
 
+        button_layout = QHBoxLayout()
+
+        self.send_btn = QPushButton("Отправить")
+        self.send_btn.clicked.connect(self.send_excel_to_vm)
+        self.send_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #696969;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #C0C0C0;
+            }
+        """)
+
+        button_layout.addWidget(self.send_btn)
+        layout.addLayout(button_layout)
+
+    def send_excel_to_vm(self):
+        """Отправляет Excel файл на VM используя VMManager"""
+        try:
+            if not self.screenshot_manager.save_path:
+                QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
+                return
+
+            # Ищем самый новый Excel файл через VMManager
+            excel_file = self.vm_manager.find_latest_excel_file(self.screenshot_manager.save_path)
+            
+            if not excel_file:
+                QMessageBox.warning(self, "Ошибка", "Не найден Excel файл для отправки!")
+                return
+
+            # Проверяем, задан ли IP
+            if self.vm_manager.manual_ip_part is None:
+                if not self.show_ip_input_dialog():
+                    self.ui_manager.update_status("IP не задан - отправка отменена", "color: orange;")
+                    return
+
+            # Блокируем UI
+            self.send_btn.setEnabled(False)
+            self.ui_manager.update_status(f"Отправка {os.path.basename(excel_file)} на VM...", "color: blue;")
+
+            # Отправляем файл используя метод из VMManager
+            success, message = self.vm_manager.send_excel_to_vm(excel_file)
+
+            # Показываем результат
+            if success:
+                self.ui_manager.update_status(f"✅ {message}", "color: green;")
+                QMessageBox.information(self, "Успех", message)
+                logger.info(f"Excel файл успешно отправлен: {excel_file}")
+            else:
+                self.ui_manager.update_status(f"❌ {message}", "color: red;")
+                QMessageBox.warning(self, "Ошибка", message)
+                logger.error(f"Ошибка отправки Excel файла: {message}")
+
+        except Exception as e:
+            error_msg = f"Ошибка при отправке файла: {str(e)}"
+            self.ui_manager.update_status(f"💥 {error_msg}", "color: red;")
+            QMessageBox.critical(self, "Ошибка", error_msg)
+            logger.error(error_msg)
+        finally:
+            # Разблокируем кнопку
+            self.send_btn.setEnabled(True)
+
     def connect_signals(self):
         self.capture_checkbox.stateChanged.connect(self.toggle_capture)
         self.hotkey_checkbox.stateChanged.connect(self.toggle_hotkey)
+        self.delete_last_checkbox.stateChanged.connect(self.toggle_delete_last)
         self.select_folder_btn.clicked.connect(self.select_folder)
         self.excel_btn.clicked.connect(self.export_to_excel)
         # self.vm_btn.clicked.connect(self.send_to_vm)
@@ -380,6 +463,15 @@ class MainWindow(QMainWindow):
         else:
             self.ui_manager.update_status(f"❌ {clear_message}", "color: red;")
             QMessageBox.warning(self, "Ошибка", clear_message)
+
+    def toggle_delete_last(self, state):
+        """Включает/выключает режим удаления последнего скриншота по Delete"""
+        if state == Qt.CheckState.Checked.value:
+            self.ui_manager.update_status("Режим 'Delete для удаления' включен", "color: blue;")
+            logger.info("Включен режим удаления последнего скриншота по Delete")
+        else:
+            self.ui_manager.update_status("Режим 'Delete для удаления' выключен", "color: gray;")
+            logger.info("Выключен режим удаления последнего скриншота по Delete")
 
     def export_to_excel(self):
         """Экспорт скриншотов в Excel с диагностикой"""
@@ -485,3 +577,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self.screenshot_manager.cleanup()
         event.accept()
+
+    
+    

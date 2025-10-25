@@ -82,3 +82,9 @@ class FileManager:
             logger.warning(f"Файл не найден: {file_path}")
             return False
         return True
+
+
+
+
+
+

@@ -19,7 +19,7 @@
     50004
   ],
   "vm_timeout": 5,
-  "excel_auto_open": false,
+  "excel_auto_open": true,
   "log_level": "INFO",
   "log_file": "screenshot_tool.log",
   "log_max_size": 10485760,

@@ -99,3 +99,9 @@ class CleanupDialog:
     def show_cleanup_error(parent, clear_message):
         """Показывает ошибку очистки"""
         QMessageBox.warning(parent, "Ошибка очистки", clear_message)
+
+
+
+
+
+

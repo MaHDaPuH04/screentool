@@ -28,6 +28,9 @@ class ScreenshotManager(QObject):
         self.last_capture_time = 0  # Время последнего скриншота
         self.min_interval = config.min_interval  # Минимальный интервал между скриншотами
         self.max_screenshots = config.max_screenshots  # Максимальное количество скриншотов
+        self.last_delete_time = 0  # Время последнего удаления
+        self.delete_cooldown = 2.0  # Задержка 2 секунды между удалениями
+
 
     def _thread_safe_status(self, message):
         """Безопасный вызов статуса из любого потока"""
@@ -53,7 +56,7 @@ class ScreenshotManager(QObject):
                                  Qt.ConnectionType.QueuedConnection)
 
     def take_screenshot(self):
-        """Сделать скриншот с комплексной защитой"""
+        """Сделать скриншот с авто-сворачиванием окна"""
         start_time = time.time()
         
         # Защита 1: Проверка параллельного выполнения
@@ -83,13 +86,29 @@ class ScreenshotManager(QObject):
             self.status_changed.emit(f"Достигнут лимит скриншотов: {self.max_screenshots}")
             return
 
+        should_minimize = not self.capture_enabled and hasattr(self, 'main_window') and self.main_window
+
+        if should_minimize:
+            logger.debug("🔄 Сворачиваем окно для скриншота всего экрана...")
+            # Используем QTimer для гарантированного выполнения в UI потоке
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, self.main_window.minimize_window)
+            time.sleep(0.01)  # Ждем полного сворачивания
+
         # Все проверки пройдены - запускаем захват
         logger.info("Начинаем создание скриншота")
         self._actually_take_screenshot()
         
-        # Логируем производительность
-        duration = time.time() - start_time
-        logger.performance("take_screenshot", duration)
+        if should_minimize:
+            logger.debug("🔄 Восстанавливаем окно после скриншота...")
+            time.sleep(0.01)  # Небольшая задержка перед восстановлением
+            # Используем QTimer для гарантированного выполнения в UI потоке
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, self.main_window.restore_window)
+
+        #Логируем производительность
+        durations = time.time() - start_time
+        logger.performance("take_csreenshot", durations)
 
     def _actually_take_screenshot(self):
         """Реальный метод создания скриншота"""
@@ -98,7 +117,7 @@ class ScreenshotManager(QObject):
             self.last_capture_time = time.time()
 
             # Короткая задержка для стабилизации
-            time.sleep(0.3)
+            time.sleep(0.01)
 
             # Логика захвата скриншота
             screenshot = None
@@ -220,14 +239,14 @@ class ScreenshotManager(QObject):
             return screenshot
 
         except Exception as e:
-            print(f"Error capturing active window: {e}")
+            print(f"Ошибка захвати активного окна: {e}")
             return None
 
     def capture_full_screen(self):
         try:
             return ImageGrab.grab()
         except Exception as e:
-            print(f"Error capturing full screen: {e}")
+            print(f"Ошибка захвата экрана: {e}")
             return None
 
     def start_capture(self):
@@ -246,33 +265,157 @@ class ScreenshotManager(QObject):
 
         self.hotkey_enabled = True
         try:
-            # Используем горячие клавиши из конфигурации
-            for hotkey in config.hotkeys:
-                keyboard.add_hotkey(hotkey, self._hotkey_callback, suppress=True)
+            # Регистрируем глобальный обработчик
+            keyboard.hook(self._keyboard_event_handler)
+            
             self.hotkey_registered = True
-            hotkeys_str = " или ".join(config.hotkeys)
-            self.status_changed.emit(f"Горячие клавиши: ({hotkeys_str})")
+            self.status_changed.emit("Горячие клавиши активны (игнорируется numpad)")
         except Exception as e:
-            logger.error(f"Ошибка включения горячей клавиши: {str(e)}")
-            self.status_changed.emit(f"Ошибка включения горячей клавиши: {str(e)}")
+            logger.error(f"Ошибка включения горячих клавиш: {str(e)}")
+            self.status_changed.emit(f"Ошибка включения горячих клавиш: {str(e)}")
             self.hotkey_enabled = False
+
+    def _keyboard_event_handler(self, event):
+        """Глобальный обработчик клавиатуры с фильтрацией numpad"""
+        if event.event_type != keyboard.KEY_DOWN or not self.hotkey_enabled:
+            return
+        
+        # Игнорируем все numpad клавиши
+        numpad_keys = {
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            'num 0', 'num 1', 'num 2', 'num 3', 'num 4', 'num 5', 
+            'num 6', 'num 7', 'num 8', 'num 9', 'num .', 'num del'
+        }
+        
+        if event.name in numpad_keys:
+            return
+        
+        # Обрабатываем горячие клавиши
+        if event.name == 'insert':
+            logger.info("Insert - создание скриншота")
+            threading.Thread(target=self.take_screenshot, daemon=True).start()
+        
+        elif event.name == 'delete':
+            logger.info("Delete - удаление скриншота")
+            self._delete_hotkey_callback()
+        
+        elif event.name == 'print screen':
+            logger.info("Print Screen - создание скриншота")
+            threading.Thread(target=self.take_screenshot, daemon=True).start()
+
+    def delete_last_screenshot(self):
+        """Удаляет последний сделанный скриншот"""
+        try:
+            # ПРОВЕРЯЕМ ЗАДЕРЖКУ
+            current_time = time.time()
+            time_since_last_delete = current_time - self.last_delete_time
+            
+            if time_since_last_delete < self.delete_cooldown:
+                remaining = self.delete_cooldown - time_since_last_delete
+                logger.warning(f"Слишком частое удаление! Подождите {remaining:.1f} сек")
+                self.status_changed.emit(f"Подождите {remaining:.1f} сек перед следующим удалением")
+                return False
+
+            if self.screenshot_count <= 0 or not self.save_path:
+                logger.warning("Нет скриншотов для удаления")
+                self.status_changed.emit("Нет скриншотов для удаления")
+                return False
+            
+            # Определяем номер последнего скриншота (count-1 потому что счетчик уже увеличен)
+            last_screenshot_number = self.screenshot_count - 1
+            
+            # Формируем имя последнего файла
+            if config.screenshot_format.upper() == "JPEG":
+                filename = f"screenshot_{last_screenshot_number:04d}.jpg"
+            else:
+                filename = f"screenshot_{last_screenshot_number:04d}.png"
+                
+            filepath = os.path.join(self.save_path, filename)
+            
+            # Проверяем существование файла и удаляем
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                self.screenshot_count -= 1
+                self.screenshot_taken.emit(self.screenshot_count)
+                self.last_delete_time = current_time
+                logger.info(f"Удален последний скриншот: {filename}")
+                self.status_changed.emit(f"Удален скриншот: {filename}")
+                return True
+            else:
+                logger.warning(f"Файл для удаления не найден: {filepath}")
+                self.status_changed.emit("Файл для удаления не найден")
+                return False
+                
+        except Exception as e:
+            error_msg = f"Ошибка удаления последнего скриншота: {e}"
+            logger.error(error_msg)
+            self.status_changed.emit(error_msg)
+            return False
 
     def disable_hotkey(self):
         self.hotkey_enabled = False
         try:
-            if self.hotkey_registered:
-                keyboard.clear_all_hotkeys()
-                self.hotkey_registered = False
+            keyboard.unhook_all()
+            self.hotkey_registered = False
         except:
             pass
-        self.status_changed.emit("Горячая клавиша выключена")
+        self.status_changed.emit("Горячие клавиши выключены")
 
     def _hotkey_callback(self):
         if self.hotkey_enabled:
             threading.Thread(target=self.take_screenshot, daemon=True).start()
+    
+    def _delete_hotkey_callback(self):
+        """Обработчик горячей клавиши Delete для удаления последнего скриншота"""
+        logger.debug("Клавиша Delete нажата")
+        
+        # Проверяем, включен ли режим удаления через главное окно
+        if hasattr(self, 'main_window') and self.main_window:
+            if hasattr(self.main_window, 'delete_last_checkbox') and self.main_window.delete_last_checkbox.isChecked():
+                # ПРОВЕРЯЕМ ЗАДЕРЖКУ
+                current_time = time.time()
+                time_since_last_delete = current_time - self.last_delete_time
+                
+                if time_since_last_delete < self.delete_cooldown:
+                    remaining = self.delete_cooldown - time_since_last_delete
+                    logger.debug(f"Удаление заблокировано, осталось: {remaining:.1f} сек")
+                    self.status_changed.emit(f"⏳ Подождите {remaining:.1f} сек")
+                    return
+
+                logger.info("Удаление последнего скриншота по Delete")
+                threading.Thread(target=self.delete_last_screenshot, daemon=True).start()
+            else:
+                # Если чекбокс выключен, просто игнорируем нажатие Delete
+                logger.debug("Режим удаления отключен - игнорируем Delete")
+                self.status_changed.emit("❌ Включите 'Delete для удаления' в настройках")
+        else:
+            # Если нет доступа к UI, проверяем задержку и удаляем
+            current_time = time.time()
+            time_since_last_delete = current_time - self.last_delete_time
+            
+            if time_since_last_delete < self.delete_cooldown:
+                remaining = self.delete_cooldown - time_since_last_delete
+                logger.debug(f"Удаление заблокировано, осталось: {remaining:.1f} сек")
+                self.status_changed.emit(f"⏳ Подождите {remaining:.1f} сек")
+                return
+            
+            logger.info("Удаление последнего скриншота по Delete (без проверки UI)")
+            threading.Thread(target=self.delete_last_screenshot, daemon=True).start()
+
+    def _register_delete_hotkey(self):
+        """Регистрирует горячую клавишу Delete"""
+        try:
+            keyboard.add_hotkey('delete', self._delete_hotkey_callback, suppress=True)
+            logger.info("Горячая клавиша Delete зарегистрирована")
+        except Exception as e:
+            logger.error(f"Ошибка регистрации Delete: {e}")
 
     def cleanup(self):
         self.stop_capture()
         self.disable_hotkey()
+        try:
+            keyboard.clear_all_hotkeys()
+        except:
+            pass
         if self._zip_thread and self._zip_thread.is_alive():
             self._zip_thread.join(timeout=1.0)

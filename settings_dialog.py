@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from config import config
 from logger import logger
+from vm_manager import VMManager
 
 class SettingsDialog(QDialog):
     """Диалог настроек приложения"""
@@ -18,6 +19,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Настройки")
         self.setFixedSize(400, 500)
+        self.vm_manager = VMManager()
         self.setup_ui()
         self.load_settings()
     
@@ -35,39 +37,40 @@ class SettingsDialog(QDialog):
         screenshot_group = QGroupBox("Настройки скриншотов")
         screenshot_layout = QFormLayout()
         
-        # Качество изображения
-        self.quality_slider = QSlider(Qt.Orientation.Horizontal)
-        self.quality_slider.setRange(1, 100)
-        self.quality_slider.setValue(config.screenshot_quality)
-        self.quality_label = QLabel(f"{config.screenshot_quality}%")
-        self.quality_slider.valueChanged.connect(self.update_quality_label)
-        screenshot_layout.addRow("Качество:", self.quality_slider)
-        screenshot_layout.addRow("", self.quality_label)
+        # # Качество изображения
+        # self.quality_slider = QSlider(Qt.Orientation.Horizontal)
+        # self.quality_slider.setRange(1, 100)
+        # self.quality_slider.setValue(config.screenshot_quality)
+        # self.quality_label = QLabel(f"{config.screenshot_quality}%")
+        # self.quality_slider.valueChanged.connect(self.update_quality_label)
+        # screenshot_layout.addRow("Качество:", self.quality_slider)
+        # screenshot_layout.addRow("", self.quality_label)
         
         # Формат изображения
         self.format_combo = QComboBox()
-        self.format_combo.addItems(["PNG", "JPEG"])
+        self.format_combo.addItems(["PNG"])
         self.format_combo.setCurrentText(config.screenshot_format)
         screenshot_layout.addRow("Формат:", self.format_combo)
         
         # Минимальный интервал
         self.interval_spin = QSpinBox()
-        self.interval_spin.setRange(1, 10)
+        self.interval_spin.setRange(1, 9)
+        self.interval_spin.setPrefix("0.")
         self.interval_spin.setValue(int(config.min_interval * 10))
         self.interval_spin.setSuffix(" сек")
-        screenshot_layout.addRow("Интервал:", self.interval_spin)
+        screenshot_layout.addRow("Интервал между скриншотами:", self.interval_spin)
         
         # Максимальное количество скриншотов
         self.max_screenshots_spin = QSpinBox()
         self.max_screenshots_spin.setRange(10, 10000)
         self.max_screenshots_spin.setValue(config.max_screenshots)
-        screenshot_layout.addRow("Макс. скриншотов:", self.max_screenshots_spin)
+        screenshot_layout.addRow("Подумать что можно сюда перенести для удобства:", self.max_screenshots_spin)
         
         screenshot_group.setLayout(screenshot_layout)
         layout.addWidget(screenshot_group)
         
         # Группа настроек VM
-        vm_group = QGroupBox("Настройки VM")
+        vm_group = QGroupBox("Настройки для отладки соединения")
         vm_layout = QFormLayout()
         
         # Базовый IP
@@ -86,7 +89,7 @@ class SettingsDialog(QDialog):
         self.timeout_spin.setValue(config.vm_timeout)
         self.timeout_spin.setSuffix(" сек")
         vm_layout.addRow("Таймаут:", self.timeout_spin)
-        
+
         vm_group.setLayout(vm_layout)
         layout.addWidget(vm_group)
         
@@ -109,14 +112,14 @@ class SettingsDialog(QDialog):
         self.save_btn.clicked.connect(self.save_settings)
         self.save_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #696969;
                 color: white;
                 border: none;
                 padding: 8px 16px;
                 border-radius: 4px;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #C0C0C0;
             }
         """)
         
@@ -124,14 +127,14 @@ class SettingsDialog(QDialog):
         self.cancel_btn.clicked.connect(self.reject)
         self.cancel_btn.setStyleSheet("""
             QPushButton {
-                background-color: #f44336;
+                background-color: #696969;
                 color: white;
                 border: none;
                 padding: 8px 16px;
                 border-radius: 4px;
             }
             QPushButton:hover {
-                background-color: #da190b;
+                background-color: #C0C0C0;
             }
         """)
         
@@ -152,7 +155,7 @@ class SettingsDialog(QDialog):
         """Сохраняет настройки"""
         try:
             # Обновляем конфигурацию
-            config.screenshot_quality = self.quality_slider.value()
+            # config.screenshot_quality = self.quality_slider.value()
             config.screenshot_format = self.format_combo.currentText()
             config.min_interval = self.interval_spin.value() / 10.0
             config.max_screenshots = self.max_screenshots_spin.value()

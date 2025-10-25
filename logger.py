@@ -80,3 +80,4 @@ class ScreenshotLogger:
 
 # Глобальный экземпляр логгера
 logger = ScreenshotLogger()
+

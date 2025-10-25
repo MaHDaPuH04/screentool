@@ -1,25 +1,88 @@
-2025-10-22 10:46:35 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна выключен
-2025-10-22 10:46:52 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна выключен
-2025-10-22 10:46:52 - ScreenshotTool - INFO - Статус обновлен: Горячая клавиша выключена
-2025-10-22 10:55:45 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна выключен
-2025-10-22 10:55:45 - ScreenshotTool - INFO - Статус обновлен: Горячая клавиша выключена
-2025-10-22 11:22:46 - ScreenshotTool - INFO - Настройки сохранены
-2025-10-22 11:22:46 - ScreenshotTool - INFO - Настройки изменены, обновляем конфигурацию
-2025-10-22 11:22:46 - ScreenshotTool - INFO - Статус обновлен: Настройки обновлены
-2025-10-22 11:22:53 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна выключен
-2025-10-22 11:22:53 - ScreenshotTool - INFO - Статус обновлен: Горячая клавиша выключена
-2025-10-22 11:22:53 - ScreenshotTool - INFO - UI сброшен после выбора папки
-2025-10-22 11:22:55 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна включен
-2025-10-22 11:22:55 - ScreenshotTool - INFO - Статус обновлен: Горячие клавиши: (print screen или insert)
-2025-10-22 11:22:56 - ScreenshotTool - INFO - Начинаем создание скриншота
-2025-10-22 11:22:57 - ScreenshotTool - INFO - Скриншот окна сохранен: screenshot_0000.png
-2025-10-22 11:22:57 - ScreenshotTool - INFO - Статус обновлен: Скриншот окна сохранен: screenshot_0000.png
-2025-10-22 11:22:57 - ScreenshotTool - INFO - Начинаем создание скриншота
-2025-10-22 11:22:58 - ScreenshotTool - INFO - Скриншот окна сохранен: screenshot_0001.png
-2025-10-22 11:22:58 - ScreenshotTool - INFO - Статус обновлен: Скриншот окна сохранен: screenshot_0001.png
-2025-10-22 11:22:59 - ScreenshotTool - INFO - Начинаем создание скриншота
-2025-10-22 11:22:59 - ScreenshotTool - INFO - Скриншот окна сохранен: screenshot_0002.png
-2025-10-22 11:22:59 - ScreenshotTool - INFO - Статус обновлен: Скриншот окна сохранен: screenshot_0002.png
-2025-10-22 11:23:01 - ScreenshotTool - INFO - Excel экспорт: C:/Users/ADVMANAGER/Desktop/WORK FOLDER/Shot/dist/screenshots_export_20251022_112300.xlsx (3 скриншотов)
-2025-10-22 11:23:43 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна выключен
-2025-10-22 11:23:43 - ScreenshotTool - INFO - Статус обновлен: Горячая клавиша выключена
+2025-10-24 17:43:32 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна выключен
+2025-10-24 17:43:32 - ScreenshotTool - INFO - Статус обновлен: Горячие клавиши выключены
+2025-10-24 17:57:16 - ScreenshotTool - INFO - Настройки сохранены
+2025-10-24 17:57:16 - ScreenshotTool - INFO - Настройки изменены, обновляем конфигурацию
+2025-10-24 17:57:16 - ScreenshotTool - INFO - Статус обновлен: Настройки обновлены
+2025-10-24 17:57:19 - ScreenshotTool - INFO - Сканирование VM 10.7.128.64...
+2025-10-24 17:57:22 - ScreenshotTool - INFO - Порт 50000 доступен на 10.7.128.64
+2025-10-24 17:57:22 - ScreenshotTool - INFO - Выбран порт 50000 для 10.7.128.64
+2025-10-24 17:57:22 - ScreenshotTool - INFO - Путь к VM: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER
+2025-10-24 17:57:22 - ScreenshotTool - INFO - Путь к VM определен: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER
+2025-10-24 17:57:22 - ScreenshotTool - INFO - IP установлен: 64
+2025-10-24 17:57:22 - ScreenshotTool - INFO - Статус обновлен: IP установлен: 10.7.128.64
+2025-10-24 17:57:22 - ScreenshotTool - INFO - Статус обновлен: Режим 'Delete для удаления' включен
+2025-10-24 17:57:22 - ScreenshotTool - INFO - Включен режим удаления последнего скриншота по Delete
+2025-10-24 17:57:28 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна выключен
+2025-10-24 17:57:28 - ScreenshotTool - INFO - Статус обновлен: Горячие клавиши выключены
+2025-10-24 17:57:28 - ScreenshotTool - INFO - UI сброшен после выбора папки
+2025-10-24 17:57:31 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна включен
+2025-10-24 17:57:31 - ScreenshotTool - INFO - Статус обновлен: Горячие клавиши активны (игнорируется numpad)
+2025-10-24 17:57:32 - ScreenshotTool - INFO - Insert - создание скриншота
+2025-10-24 17:57:32 - ScreenshotTool - INFO - Начинаем создание скриншота
+2025-10-24 17:57:32 - ScreenshotTool - INFO - Скриншот окна сохранен: screenshot_0000.png
+2025-10-24 17:57:32 - ScreenshotTool - INFO - Статус обновлен: Скриншот окна сохранен: screenshot_0000.png
+2025-10-24 17:57:33 - ScreenshotTool - INFO - Insert - создание скриншота
+2025-10-24 17:57:33 - ScreenshotTool - INFO - Начинаем создание скриншота
+2025-10-24 17:57:33 - ScreenshotTool - INFO - Скриншот окна сохранен: screenshot_0001.png
+2025-10-24 17:57:33 - ScreenshotTool - INFO - Статус обновлен: Скриншот окна сохранен: screenshot_0001.png
+2025-10-24 17:57:34 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна выключен
+2025-10-24 17:57:34 - ScreenshotTool - INFO - Insert - создание скриншота
+2025-10-24 17:57:34 - ScreenshotTool - INFO - Начинаем создание скриншота
+2025-10-24 17:57:34 - ScreenshotTool - INFO - Скриншот экрана сохранен: screenshot_0002.png
+2025-10-24 17:57:34 - ScreenshotTool - INFO - Статус обновлен: Скриншот экрана сохранен: screenshot_0002.png
+2025-10-24 17:57:35 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна включен
+2025-10-24 17:57:36 - ScreenshotTool - INFO - Insert - создание скриншота
+2025-10-24 17:57:36 - ScreenshotTool - INFO - Начинаем создание скриншота
+2025-10-24 17:57:36 - ScreenshotTool - INFO - Скриншот окна сохранен: screenshot_0003.png
+2025-10-24 17:57:36 - ScreenshotTool - INFO - Статус обновлен: Скриншот окна сохранен: screenshot_0003.png
+2025-10-24 17:57:40 - ScreenshotTool - INFO - Excel файл открыт для просмотра
+2025-10-24 17:57:40 - ScreenshotTool - INFO - Excel экспорт: C:/Users/ADVMANAGER/Desktop/WORK FOLDER/Shot/dist/123.xlsx (4 скриншотов)
+2025-10-24 17:57:50 - ScreenshotTool - INFO - Сканирование VM 10.7.128.64...
+2025-10-24 17:57:52 - ScreenshotTool - INFO - Порт 50000 доступен на 10.7.128.64
+2025-10-24 17:57:52 - ScreenshotTool - INFO - Выбран порт 50000 для 10.7.128.64
+2025-10-24 17:57:52 - ScreenshotTool - INFO - Путь к VM: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER
+2025-10-24 17:57:52 - ScreenshotTool - INFO - Путь к VM определен: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER
+2025-10-24 17:57:52 - ScreenshotTool - INFO - IP установлен: 64
+2025-10-24 17:57:52 - ScreenshotTool - INFO - Статус обновлен: IP установлен: 10.7.128.64
+2025-10-24 17:57:58 - ScreenshotTool - INFO - Статус обновлен: Отправка 123.xlsx на VM...
+2025-10-24 17:57:58 - ScreenshotTool - INFO - Копируем в: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER
+2025-10-24 17:57:58 - ScreenshotTool - INFO - Полный путь файла: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER\123.xlsx
+2025-10-24 17:57:58 - ScreenshotTool - INFO - Файл скопирован
+2025-10-24 17:57:58 - ScreenshotTool - INFO - Файл создан, размер: 274709 байт
+2025-10-24 17:57:58 - ScreenshotTool - INFO - Статус обновлен: ✅ Excel успешно отправлен на VM: 123.xlsx
+2025-10-24 17:58:01 - ScreenshotTool - INFO - Excel файл успешно отправлен: C:/Users/ADVMANAGER/Desktop/WORK FOLDER/Shot/dist\123.xlsx
+2025-10-24 18:12:36 - ScreenshotTool - INFO - Delete - удаление скриншота
+2025-10-24 18:12:36 - ScreenshotTool - INFO - Удаление последнего скриншота по Delete
+2025-10-24 18:12:36 - ScreenshotTool - INFO - Удален последний скриншот: screenshot_0003.png
+2025-10-24 18:12:36 - ScreenshotTool - INFO - Статус обновлен: Удален скриншот: screenshot_0003.png
+2025-10-24 18:24:33 - ScreenshotTool - INFO - Delete - удаление скриншота
+2025-10-24 18:24:33 - ScreenshotTool - INFO - Удаление последнего скриншота по Delete
+2025-10-24 18:24:33 - ScreenshotTool - INFO - Удален последний скриншот: screenshot_0002.png
+2025-10-24 18:24:33 - ScreenshotTool - INFO - Статус обновлен: Удален скриншот: screenshot_0002.png
+2025-10-24 18:24:38 - ScreenshotTool - INFO - Delete - удаление скриншота
+2025-10-24 18:24:38 - ScreenshotTool - INFO - Удаление последнего скриншота по Delete
+2025-10-24 18:24:38 - ScreenshotTool - INFO - Удален последний скриншот: screenshot_0001.png
+2025-10-24 18:24:38 - ScreenshotTool - INFO - Статус обновлен: Удален скриншот: screenshot_0001.png
+2025-10-24 18:32:56 - ScreenshotTool - INFO - Сканирование VM 10.7.128.64...
+2025-10-24 18:32:59 - ScreenshotTool - INFO - Порт 50000 доступен на 10.7.128.64
+2025-10-24 18:32:59 - ScreenshotTool - INFO - Выбран порт 50000 для 10.7.128.64
+2025-10-24 18:32:59 - ScreenshotTool - INFO - Путь к VM: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER
+2025-10-24 18:32:59 - ScreenshotTool - INFO - Путь к VM определен: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER
+2025-10-24 18:32:59 - ScreenshotTool - INFO - IP установлен: 64
+2025-10-24 18:32:59 - ScreenshotTool - INFO - Статус обновлен: IP установлен: 10.7.128.64
+2025-10-24 18:33:02 - ScreenshotTool - INFO - Статус обновлен: Отправка 123.xlsx на VM...
+2025-10-24 18:33:02 - ScreenshotTool - INFO - Копируем в: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER
+2025-10-24 18:33:02 - ScreenshotTool - INFO - Полный путь файла: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER\123.xlsx
+2025-10-24 18:33:02 - ScreenshotTool - INFO - Файл скопирован
+2025-10-24 18:33:02 - ScreenshotTool - INFO - Файл создан, размер: 274709 байт
+2025-10-24 18:33:02 - ScreenshotTool - INFO - Статус обновлен: ✅ Excel успешно отправлен на VM: 123.xlsx
+2025-10-24 18:33:30 - ScreenshotTool - INFO - Excel файл успешно отправлен: C:/Users/ADVMANAGER/Desktop/WORK FOLDER/Shot/dist\123.xlsx
+2025-10-24 19:39:37 - ScreenshotTool - INFO - Сканирование VM 10.7.128.64...
+2025-10-24 19:39:39 - ScreenshotTool - INFO - Порт 50000 доступен на 10.7.128.64
+2025-10-24 19:39:39 - ScreenshotTool - INFO - Выбран порт 50000 для 10.7.128.64
+2025-10-24 19:39:39 - ScreenshotTool - INFO - Путь к VM: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER
+2025-10-24 19:39:39 - ScreenshotTool - INFO - Путь к VM определен: \\10.7.128.64\C$\Users\ADVMANAGER\Desktop\WORK FOLDER
+2025-10-24 19:39:39 - ScreenshotTool - INFO - IP установлен: 64
+2025-10-24 19:39:39 - ScreenshotTool - INFO - Статус обновлен: IP установлен: 10.7.128.64
+2025-10-25 14:09:24 - ScreenshotTool - INFO - Статус обновлен: Режим захвата активного окна выключен
+2025-10-25 14:09:24 - ScreenshotTool - INFO - Статус обновлен: Горячие клавиши выключены

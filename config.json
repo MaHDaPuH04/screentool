@@ -1,5 +1,5 @@
 {
-  "screenshot_quality": 100,
+  "screenshot_quality": 75,
   "screenshot_format": "PNG",
   "min_interval": 0.8,
   "max_screenshots": 1000,
@@ -9,7 +9,7 @@
     -8,
     -8
   ],
-  "vm_base_ip": "10.7.128",
+  "vm_base_ip": "10.172.64",
   "vm_default_port": 50000,
   "vm_scan_ports": [
     50000,

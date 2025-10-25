@@ -93,3 +93,9 @@ class UIManager:
         self.screenshot_manager.stop_capture()
         self.screenshot_manager.disable_hotkey()
         logger.info("UI сброшен после выбора папки")
+
+
+
+
+
+

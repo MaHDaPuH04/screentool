@@ -65,7 +65,7 @@ class VMManager:
             # Создаем имя для копии на VM
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             original_name = os.path.basename(excel_file_path)
-            vm_filename = f"{original_name[:-5]}_vm_{timestamp}.xlsx"
+            vm_filename = original_name
 
             # Копируем на VM
             success = self._copy_to_vm(excel_file_path, vm_filename, vm_path)
@@ -142,3 +142,9 @@ class VMManager:
             error_msg = f"Ошибка копирования: {str(e)}"
             logger.error(error_msg)
             return False, error_msg
+
+
+
+
+
+

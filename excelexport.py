@@ -9,108 +9,88 @@ from logger import logger
 class ExcelExporter:
     def export_screenshots_to_excel(self, screenshots_folder, excel_path=None):
         """
-        Минимальная версия экспорта в Excel
+        Экспортирует скриншоты по подпапкам.
+        Каждая подпапка = отдельный лист Excel.
         """
         print("=== НАЧАЛО ЭКСПОРТА ===")
 
         try:
-            # Получаем список скриншотов
-            screenshot_files = []
-            for filename in os.listdir(screenshots_folder):
-                if filename.lower().endswith('.png') and filename.startswith('screenshot_'):
-                    file_path = os.path.join(screenshots_folder, filename)
-                    created_time = datetime.fromtimestamp(os.path.getctime(file_path))
-                    screenshot_files.append((file_path, {
-                        'filename': filename,
-                        'created_time': created_time
-                    }))
+            # Получаем все подпапки, включая group_ папки
+            subfolders = [
+                f for f in os.listdir(screenshots_folder)
+                if os.path.isdir(os.path.join(screenshots_folder, f)) and f.startswith('group_')
+            ]
+            
+            if not subfolders:
+                return None, "Нет подпапок для экспорта"
 
-            print(f"Найдено файлов: {len(screenshot_files)}")
+            subfolders.sort()
+            print(f"Найдено подпапок: {len(subfolders)}")
+            print(f"Подпапки: {subfolders}")
 
-            if not screenshot_files:
-                return None, "Нет скриншотов для экспорта"
-
-            # Сортируем по дате создания
-            screenshot_files.sort(key=lambda x: x[1]['created_time'])
-
-            # Создаем путь для Excel файла
+            # Создаём Excel
             if not excel_path:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                 excel_path = os.path.join(screenshots_folder, f"PreRun_{timestamp}.xlsx")
-            elif not excel_path.lower().endswith('.xlsx'):
-                excel_path += '.xlsx'
 
-            print(f"Путь для Excel: {excel_path}")
-
-            # Создаем книгу Excel
             workbook = Workbook()
-            worksheet = workbook.active
-            worksheet.title = "Скриншоты"
+            workbook.remove(workbook.active)  # удаляем дефолтный пустой лист
 
-            # Настраиваем колонки
-            worksheet.column_dimensions['A'].width = 10
-            worksheet.column_dimensions['B'].width = 10
-            worksheet.column_dimensions['C'].width = 10
+            total_screens = 0
 
-            # Заголовки
-            worksheet.cell(row=1, column=1, value="")
-            worksheet.cell(row=1, column=2, value="")
-            worksheet.cell(row=1, column=3, value="")
+            for subfolder in subfolders:
+                sheet = workbook.create_sheet(title=subfolder)
+                folder_path = os.path.join(screenshots_folder, subfolder)
+                print(f"Создаю лист для {subfolder}")
 
-            current_row = 2
+                # Список файлов - ищем PNG и JPG
+                files = []
+                for ext in ['*.png', '*.jpg', '*.jpeg']:
+                    import glob
+                    pattern = os.path.join(folder_path, f"screenshot_*{ext[1:]}")
+                    found_files = glob.glob(pattern)
+                    files.extend([os.path.basename(f) for f in found_files])
+                
+                # Альтернативный способ без glob
+                if not files:
+                    files = [
+                        f for f in os.listdir(folder_path)
+                        if (f.lower().endswith('.png') or f.lower().endswith('.jpg') or f.lower().endswith('.jpeg')) 
+                        and f.startswith('screenshot_')
+                    ]
+                
+                files.sort()
+                print(f"В папке {subfolder} найдено файлов: {len(files)}")
+                print(f"Файлы: {files}")
 
-            for i, (file_path, file_info) in enumerate(screenshot_files, 1):
-                print(f"Обрабатываю файл {i}: {file_info['filename']}")
+                current_row = 2
 
-                try:
-                    # Пробуем вставить изображение
-                    img = ExcelImage(file_path)
-                    logger.debug(f"Размер изображения: {img.width}x{img.height}")
-
-                    # Вставляем в колонку A с фактическим размером
-                    img.anchor = f'A{current_row}'
-                    worksheet.add_image(img)
-                    logger.debug("Изображение добавлено в Excel")
-
-                    # Добавляем информацию
-                    worksheet.cell(row=current_row, column=2, value=file_info['filename'])
-                    worksheet.cell(row=current_row, column=3,
-                                   value=file_info['created_time'].strftime('%Y-%m-%d %H:%M:%S'))
-
-                    # Переходим к следующей строке
-                    rows_needed = max(5, (img.height // 20) + 2)
-                    current_row += rows_needed
-                    print(f"Переход к строке {current_row}")
-
-                except Exception as e:
-                    print(f"Ошибка при обработке файла {file_info['filename']}: {e}")
-                    current_row += 10
-                    continue
-
-            print("Сохраняю Excel файл...")
-            # Сохраняем файл
-            workbook.save(excel_path)
-            print("Файл успешно сохранен!")
-
-            # Проверяем что файл создался
-            if os.path.exists(excel_path):
-                file_size = os.path.getsize(excel_path)
-                print(f"Файл создан, размер: {file_size} байт")
-
-                # Автооткрытие Excel файла
-                if config.excel_auto_open:
+                for i, filename in enumerate(files, 1):
+                    path = os.path.join(folder_path, filename)
+                    created_time = datetime.fromtimestamp(os.path.getctime(path))
                     try:
-                        os.startfile(excel_path)
-                        logger.info("Excel файл открыт для просмотра")
-                    except Exception as e:
-                        logger.warning(f"Не удалось открыть файл: {e}")
+                        img = ExcelImage(path)
+                        img.anchor = f'A{current_row}'
+                        sheet.add_image(img)
 
-                logger.excel_export(excel_path, len(screenshot_files))
-                return excel_path, f"Успешно экспортировано {len(screenshot_files)} скриншотов"
-            else:
-                print("Файл не создан!")
-                return None, "Не удалось создать Excel файл"
+                        sheet.cell(row=current_row, column=2, value=filename)
+                        sheet.cell(row=current_row, column=3,
+                                   value=created_time.strftime('%Y-%m-%d %H:%M:%S'))
+
+                        rows_needed = max(5, (img.height // 20) + 2)
+                        current_row += rows_needed
+                        total_screens += 1
+
+                    except Exception as e:
+                        print(f"Ошибка при вставке {filename}: {e}")
+                        current_row += 10
+
+            workbook.save(excel_path)
+            print(f"Excel сохранён: {excel_path}")
+
+            logger.excel_export(excel_path, total_screens)
+            return excel_path, f"Экспортировано {total_screens} скриншотов в {len(subfolders)} лист(ов)"
 
         except Exception as e:
-            print(f"КРИТИЧЕСКАЯ ОШИБКА: {e}")
-            return None, f"Ошибка экспорта в Excel: {str(e)}"
+            print(f"Ошибка экспорта: {e}")
+            return None, f"Ошибка: {str(e)}"

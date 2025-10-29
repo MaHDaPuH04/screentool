@@ -10,9 +10,7 @@ from datetime import datetime
 from excelexport import ExcelExporter
 from logger import logger
 from config import config
-from settings_dialog import SettingsDialog
 from dialogs import IPInputDialog, CleanupDialog
-from vm_manager import VMManager
 from ui_manager import UIManager
 from file_manager import FileManager
 
@@ -30,9 +28,9 @@ class MainWindow(QMainWindow):
         self.screenshot_manager = shot.ScreenshotManager()
         self.screenshot_manager.main_window = self
         self.excel_exporter = ExcelExporter()
+        self.next_sheet_requested = False
         
         # Инициализируем менеджеры
-        self.vm_manager = VMManager()
         self.ui_manager = UIManager(self)
         self.file_manager = FileManager()
         
@@ -49,78 +47,6 @@ class MainWindow(QMainWindow):
     def _unlock_ui(self):
         """Разблокировка UI (вызывается через сигнал)"""
         self.ui_manager.unlock_ui_after_operation()
-
-    def show_ip_input_dialog(self):
-        from PyQt6.QtWidgets import QDialog
-        """Показывает диалог ввода IP и возвращает результат"""
-        dialog = IPInputDialog(self)
-        result = dialog.exec()
-
-        if result == QDialog.DialogCode.Accepted:
-            ip_part = dialog.get_ip_part()
-            if ip_part:
-                try:
-                    self.vm_manager.set_ip_part(ip_part)
-                    self.ui_manager.update_status(f"IP установлен: 10.7.128.{ip_part}", "color: green;")
-                    return True
-                except Exception as e:
-                    QMessageBox.warning(self, "Ошибка", f"Неверный IP: {str(e)}")
-                    return False
-        return False
-
-    def send_to_vm(self):
-        """Отправляет Excel на VM с проверкой IP и последующей очисткой скриншотов"""
-        if not self.screenshot_manager.save_path:
-            QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
-            return
-
-        latest_excel = self.vm_manager.find_latest_excel_file(self.screenshot_manager.save_path)
-        if not latest_excel:
-            QMessageBox.warning(self, "Ошибка", "Не найден Excel файл для отправки!")
-            return
-
-        # Проверяем, задан ли IP
-        if self.vm_manager.manual_ip_part is None:
-            if not self.show_ip_input_dialog():
-                self.ui_manager.update_status("IP не задан - отправка отменена", "color: orange;")
-                return
-
-        # Блокируем UI
-        self.ui_manager.lock_ui_for_operation()
-        self.ui_manager.update_status(f"Отправка {os.path.basename(latest_excel)} на VM...")
-
-        def send_thread():
-            try:
-                # Получаем путь к VM с автоматическим определением порта
-                vm_path = self.vm_manager._get_vm_path()
-                if not vm_path:
-                    self.update_status_signal.emit("❌ Не удалось определить путь к VM")
-                    self.update_status_style_signal.emit("color: red;")
-                    self.unlock_ui_signal.emit()
-                    return
-
-                # Копируем файл на VM
-                success, message = self.vm_manager.copy_file_to_vm(latest_excel, vm_path)
-
-                if success:
-                    self.update_status_signal.emit(f"✅ {message}")
-                    self.update_status_style_signal.emit("color: green;")
-                    self.show_cleanup_dialog_signal.emit(message, latest_excel)
-                else:
-                    self.update_status_signal.emit(f"❌ {message}")
-                    self.update_status_style_signal.emit("color: red;")
-                    self.unlock_ui_signal.emit()
-
-            except Exception as e:
-                error_msg = f"💥 Ошибка копирования: {str(e)}"
-                self.update_status_signal.emit(error_msg)
-                self.update_status_style_signal.emit("color: red;")
-                self.unlock_ui_signal.emit()
-
-        # Запускаем в отдельном потоке
-        import threading
-        thread = threading.Thread(target=send_thread, daemon=True)
-        thread.start()
 
     def _show_cleanup_dialog(self, message, excel_file):
         """Показывает диалог очистки (вызывается через сигнал в основном потоке)"""
@@ -156,8 +82,8 @@ class MainWindow(QMainWindow):
         logger.debug("Окно приложения восстановлено")
 
     def setup_ui(self):
-        self.setWindowTitle("Auto Screenshot Tool v 1.0.4")
-        self.setFixedSize(500, 460)
+        self.setWindowTitle("Auto Screenshot Tool v 1.0.5")
+        self.setFixedSize(500, 465)
 
         # Центральный виджет
         central_widget = QWidget()
@@ -178,21 +104,30 @@ class MainWindow(QMainWindow):
         settings_group = QGroupBox("Настройки")
         settings_layout = QVBoxLayout()
 
-        # Переключатели
+       
+        # Переключатели (группа настроек)
         self.delete_last_checkbox = QCheckBox("Delete для удаления последнего скриншота")
         self.capture_checkbox = QCheckBox("Включить захват активного окна")
-        self.hotkey_checkbox = QCheckBox("Включить горячую клавишу Insert(Print Screen)")
+        self.hotkey_checkbox = QCheckBox("Включить горячую клавишу Insert (Print Screen)")
+        self.auto_open_check = QCheckBox("Автооткрывать Excel после экспорта")
+        self.auto_open_check.setChecked(config.excel_auto_open)
+                       
 
         settings_layout.addWidget(self.delete_last_checkbox)
         settings_layout.addWidget(self.capture_checkbox)
         settings_layout.addWidget(self.hotkey_checkbox)
+        settings_layout.addWidget(self.auto_open_check)
         settings_group.setLayout(settings_layout)
-        layout.addWidget(settings_group)
+        layout.addWidget(settings_group) 
 
         # Информация о папке
         self.folder_label = QLabel("Папка сохранения: не выбрана")
         self.folder_label.setWordWrap(True)
         layout.addWidget(self.folder_label)
+
+        # === ГРУППА ДЛЯ ВЫБОРА ПАПКИ И КНОПКИ "СЛЕДУЮЩИЙ ЛИСТ" ===
+        folder_group = QGroupBox("Папка сохранения и лист Excel")
+        folder_layout = QHBoxLayout()
 
         # Кнопка выбора папки
         self.select_folder_btn = QPushButton("Выбрать папку для сохранения")
@@ -208,32 +143,37 @@ class MainWindow(QMainWindow):
                 background-color: #C0C0C0;
             }
         """)
-        self.select_folder_btn.setToolTip("Скриншотов и Excel-файла")
-        layout.addWidget(self.select_folder_btn)
+        self.select_folder_btn.setToolTip("Выбрать папку для скриншотов и Excel-файлов")
+
+        # Кнопка "Следующий лист"
+        self.next_sheet_btn = QPushButton("Следующий лист")
+        self.next_sheet_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #808080;
+                color: white;
+                border: none;
+                padding: 8px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #A9A9A9;
+            }
+        """)
+        self.next_sheet_btn.setToolTip("Следующие скриншоты будут добавлены на новый лист Excel")
+
+        folder_layout.addWidget(self.select_folder_btn)
+        folder_layout.addWidget(self.next_sheet_btn)
+
+        folder_group.setLayout(folder_layout)
+        layout.addWidget(folder_group)
 
         # Счетчик скриншотов
         self.counter_label = QLabel("Сделано скриншотов: 0")
         layout.addWidget(self.counter_label)
 
-        # ГРУППА ДЛЯ ЧЕТЫРЕХ КНОПОК
+        # ГРУППА ДЛЯ двух КНОПОК
         buttons_group = QGroupBox("Действия")
         buttons_layout = QHBoxLayout()  # Горизонтальный layout для кнопок
-
-        # Кнопка "Настроить IP"
-        self.ip_btn = QPushButton("№ VSAT'а")
-        self.ip_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #696969;
-                    color: white;
-                    border: none;
-                    padding: 8px;
-                    border-radius: 4px;
-                }
-                QPushButton:hover {
-                    background-color: #C0C0C0;
-                }
-            """)
-        self.ip_btn.setToolTip("Можешь вписать, но пока не функциональна")
 
         # Кнопка "Экспорт в Excel"
         self.excel_btn = QPushButton("Экспорт в Excel")
@@ -273,34 +213,14 @@ class MainWindow(QMainWindow):
                     color: #757575;
                 }
             """)
-        self.vm_btn.setToolTip("Очистить папку от скриншотов (Excel файлы сохраняются)")
-
-        # Кнопка "Настройки"
-        self.settings_btn = QPushButton("⚙️")
-        self.settings_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #2196F3;
-                    color: white;
-                    border: none;
-                    padding: 8px;
-                    border-radius: 4px;
-                    font-size: 16px;
-                }
-                QPushButton:hover {
-                    background-color: #1976D2;
-                }
-            """)
-        self.settings_btn.setToolTip("Настройки приложения")
-        self.settings_btn.setFixedWidth(50)
-
+        self.vm_btn.setToolTip("Очистить папку от скриншотов (Excel файлы сохраняются)")     
+                                         
         # Добавляем кнопки в горизонтальный layout
-        buttons_layout.addWidget(self.ip_btn)
         buttons_layout.addWidget(self.excel_btn)
         buttons_layout.addWidget(self.vm_btn)
-        buttons_layout.addWidget(self.settings_btn)
+    
 
         # Устанавливаем растяжение
-        buttons_layout.setStretchFactor(self.ip_btn, 1)
         buttons_layout.setStretchFactor(self.excel_btn, 1)
         buttons_layout.setStretchFactor(self.vm_btn, 1)
 
@@ -317,82 +237,15 @@ class MainWindow(QMainWindow):
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
 
-        button_layout = QHBoxLayout()
-
-        self.send_btn = QPushButton("Отправить")
-        self.send_btn.clicked.connect(self.send_excel_to_vm)
-        self.send_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #696969;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #C0C0C0;
-            }
-        """)
-
-        button_layout.addWidget(self.send_btn)
-        layout.addLayout(button_layout)
-
-    def send_excel_to_vm(self):
-        """Отправляет Excel файл на VM используя VMManager"""
-        try:
-            if not self.screenshot_manager.save_path:
-                QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
-                return
-
-            # Ищем самый новый Excel файл через VMManager
-            excel_file = self.vm_manager.find_latest_excel_file(self.screenshot_manager.save_path)
-            
-            if not excel_file:
-                QMessageBox.warning(self, "Ошибка", "Не найден Excel файл для отправки!")
-                return
-
-            # Проверяем, задан ли IP
-            if self.vm_manager.manual_ip_part is None:
-                if not self.show_ip_input_dialog():
-                    self.ui_manager.update_status("IP не задан - отправка отменена", "color: orange;")
-                    return
-
-            # Блокируем UI
-            self.send_btn.setEnabled(False)
-            self.ui_manager.update_status(f"Отправка {os.path.basename(excel_file)} на VM...", "color: blue;")
-
-            # Отправляем файл используя метод из VMManager
-            success, message = self.vm_manager.send_excel_to_vm(excel_file)
-
-            # Показываем результат
-            if success:
-                self.ui_manager.update_status(f"✅ {message}", "color: green;")
-                QMessageBox.information(self, "Успех", message)
-                logger.info(f"Excel файл успешно отправлен: {excel_file}")
-            else:
-                self.ui_manager.update_status(f"❌ {message}", "color: red;")
-                QMessageBox.warning(self, "Ошибка", message)
-                logger.error(f"Ошибка отправки Excel файла: {message}")
-
-        except Exception as e:
-            error_msg = f"Ошибка при отправке файла: {str(e)}"
-            self.ui_manager.update_status(f"💥 {error_msg}", "color: red;")
-            QMessageBox.critical(self, "Ошибка", error_msg)
-            logger.error(error_msg)
-        finally:
-            # Разблокируем кнопку
-            self.send_btn.setEnabled(True)
-
     def connect_signals(self):
         self.capture_checkbox.stateChanged.connect(self.toggle_capture)
         self.hotkey_checkbox.stateChanged.connect(self.toggle_hotkey)
         self.delete_last_checkbox.stateChanged.connect(self.toggle_delete_last)
         self.select_folder_btn.clicked.connect(self.select_folder)
         self.excel_btn.clicked.connect(self.export_to_excel)
-        # self.vm_btn.clicked.connect(self.send_to_vm)
         self.vm_btn.clicked.connect(self.clear_screenshots_folder) #Временно заменено на очистку папки
-        self.ip_btn.clicked.connect(self.show_ip_input_dialog)
-        self.settings_btn.clicked.connect(self.show_settings)
+        self.auto_open_check.stateChanged.connect(self.toggle_auto_open)
+        self.next_sheet_btn.clicked.connect(self.request_next_sheet)
 
         # Сигналы от менеджера скриншотов
         self.screenshot_manager.screenshot_taken.connect(self.update_counter)
@@ -475,14 +328,25 @@ class MainWindow(QMainWindow):
 
     def export_to_excel(self):
         """Экспорт скриншотов в Excel с диагностикой"""
-        print("=== НАЖАТА КНОПКА ЭКСПОРТА ===")
+        print("=== НАЧАТА КНОПКА ЭКСПОРТА ===")
 
         if not self.screenshot_manager.save_path:
             QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
             return
 
+        # Используем base_save_path вместо save_path для поиска всех групп
+        export_folder = self.screenshot_manager.base_save_path if hasattr(self.screenshot_manager, 'base_save_path') else self.screenshot_manager.save_path
+    
+        print(f"Экспортируем из папки: {export_folder}")
+    
+        # Проверим что в папке есть подпапки
+        if export_folder and os.path.exists(export_folder):
+            subfolders = [f for f in os.listdir(export_folder) if os.path.isdir(os.path.join(export_folder, f))]
+            print(f"Найдено подпапок в {export_folder}: {len(subfolders)}")
+            print(f"Подпапки: {subfolders}")
+
         default_excel = os.path.join(
-            self.screenshot_manager.save_path,
+            export_folder,
             f"screenshots_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         )
 
@@ -512,24 +376,14 @@ class MainWindow(QMainWindow):
 
         try:
             print("Запускаем экспорт...")
-            # Запускаем экспорт
+            # Запускаем экспорт из КОРНЕВОЙ папки (где лежат group_ папки)
             result_path, message = self.excel_exporter.export_screenshots_to_excel(
-                self.screenshot_manager.save_path,
+                export_folder,  # Используем корневую папку, а не текущую группу
                 excel_path
             )
 
             print(f"Результат: {result_path}")
             print(f"Сообщение: {message}")
-
-            if result_path:
-                self.status_label.setText(f"Успешно: {os.path.basename(result_path)}")
-                self.status_label.setStyleSheet("color: green; font-weight: bold;")
-                # Показываем краткое сообщение
-                QMessageBox.information(self, "Успех", f"Создан файл:\n{os.path.basename(result_path)}")
-            else:
-                self.status_label.setText(f"Ошибка: {message}")
-                self.status_label.setStyleSheet("color: red;")
-                QMessageBox.warning(self, "Ошибка", message)
 
         except Exception as e:
             error_msg = f"Исключение: {str(e)}"
@@ -546,37 +400,69 @@ class MainWindow(QMainWindow):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(3000, lambda: self.status_label.setStyleSheet(""))
 
+        if result_path:
+            self.status_label.setText(f"Успешно: {os.path.basename(result_path)}")
+            self.status_label.setStyleSheet("color: green; font-weight: bold;")
+            QMessageBox.information(self, "Успех", f"Создан файл:\n{os.path.basename(result_path)}")
+    
+            # Автоматическое открытие Excel, если включено
+            if config.excel_auto_open:
+                try:
+                    os.startfile(result_path)
+                except Exception as e:
+                    logger.warning(f"Не удалось открыть Excel автоматически: {e}")
+        else:
+            self.status_label.setText(f"Ошибка: {message}")
+            self.status_label.setStyleSheet("color: red;")
+            QMessageBox.warning(self, "Ошибка", message)
+
     def update_counter(self, count):
         self.ui_manager.update_counter(count)
+
+        # Если был запрос на новый лист — активируем создание и сбрасываем флаг
+        if self.next_sheet_requested:
+            try:
+                self.excel_exporter.create_new_sheet()
+                self.ui_manager.update_status("Создан новый лист в Excel", "color: green;")
+                logger.info("Создан новый лист Excel после следующего скриншота")
+            except Exception as e:
+                logger.warning(f"Не удалось создать новый лист: {e}")
+                self.ui_manager.update_status(f"Ошибка при создании листа: {e}", "color: red;")
+
+            self.next_sheet_requested = False
 
     def update_status(self, message):
         self.ui_manager.update_status(message)
 
     def update_progress(self, value, visible):
         self.ui_manager.update_progress(value, visible)
-
-    def show_settings(self):
-        """Показывает диалог настроек"""
-        dialog = SettingsDialog(self)
-        dialog.settings_changed.connect(self.on_settings_changed)
-        dialog.exec()
     
-    def on_settings_changed(self):
-        """Обработчик изменения настроек"""
-        logger.info("Настройки изменены, обновляем конфигурацию")
-        # Перезагружаем конфигурацию
-        config.load_from_file()
-        
-        # Обновляем настройки менеджера скриншотов
-        self.screenshot_manager.min_interval = config.min_interval
-        self.screenshot_manager.max_screenshots = config.max_screenshots
-        
-        self.ui_manager.update_status("Настройки обновлены", "color: green;")
-        self.ui_manager.clear_status_style_after_delay()
-
     def closeEvent(self, event):
         self.screenshot_manager.cleanup()
         event.accept()
 
-    
-    
+    def toggle_auto_open(self, state):
+        """Сохраняет настройку автооткрытия Excel"""
+        is_enabled = state == Qt.CheckState.Checked.value
+        config.excel_auto_open = is_enabled
+        config.save_to_file()
+        self.ui_manager.update_status(
+            f"Автооткрытие Excel {'включено' if is_enabled else 'выключено'}",
+            "color: green;" if is_enabled else "color: gray;"
+            )
+        logger.info(f"Настройка автооткрытия Excel изменена: {is_enabled}")
+
+    def request_next_sheet(self):
+        """Создаёт новую подпапку для следующего листа"""
+        if not self.screenshot_manager.save_path:
+            QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
+            return
+
+        try:
+            self.screenshot_manager.next_group()
+            current_group = self.screenshot_manager.current_group
+            self.ui_manager.update_status(f"Создана новая группа: {current_group}", "color: blue;")
+            logger.info(f"Создана новая группа: {current_group}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось создать группу: {e}")
+            logger.error(f"Ошибка при создании группы: {e}")

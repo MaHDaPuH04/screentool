@@ -29,6 +29,7 @@ class MainWindow(QMainWindow):
         self.screenshot_manager.main_window = self
         self.excel_exporter = ExcelExporter()
         self.next_sheet_requested = False
+        self.setWindowIcon(QIcon(resource_path('icon.ico')))
         
         # Инициализируем менеджеры
         self.ui_manager = UIManager(self)
@@ -82,8 +83,8 @@ class MainWindow(QMainWindow):
         logger.debug("Окно приложения восстановлено")
 
     def setup_ui(self):
-        self.setWindowTitle("Auto Screenshot Tool v 1.0.5")
-        self.setFixedSize(500, 465)
+        self.setWindowTitle("Auto Screenshot Tool v 1.0.5.1")
+        self.setFixedSize(500, 468)
 
         # Центральный виджет
         central_widget = QWidget()
@@ -149,14 +150,14 @@ class MainWindow(QMainWindow):
         self.next_sheet_btn = QPushButton("Следующий лист")
         self.next_sheet_btn.setStyleSheet("""
             QPushButton {
-                background-color: #808080;
+                background-color: #696969;
                 color: white;
                 border: none;
                 padding: 8px;
                 border-radius: 4px;
             }
             QPushButton:hover {
-                background-color: #A9A9A9;
+                background-color: #C0C0C0;
             }
         """)
         self.next_sheet_btn.setToolTip("Следующие скриншоты будут добавлены на новый лист Excel")

@@ -3,6 +3,7 @@
 """
 import os
 from logger import logger
+import shutil
 
 
 class FileManager:
@@ -10,38 +11,56 @@ class FileManager:
     
     @staticmethod
     def clear_screenshots_folder(screenshot_manager):
-        """Очищает папку от скриншотов, сохраняя Excel файлы"""
+        """Очищает папку от group_ папок со скриншотами"""
         try:
-            if not screenshot_manager.save_path:
+            # Используем base_save_path (корневая папка)
+            if not hasattr(screenshot_manager, 'base_save_path') or not screenshot_manager.base_save_path:
                 return False, "Не выбрана папка для очистки"
 
-            screenshot_files = []
-            excel_files = []
+            base_path = screenshot_manager.base_save_path
+            
+            if not os.path.exists(base_path):
+                return False, "Папка не существует"
 
-            # Собираем все файлы в папке
-            for filename in os.listdir(screenshot_manager.save_path):
-                file_path = os.path.join(screenshot_manager.save_path, filename)
-                if filename.lower().endswith('.png') and filename.startswith('screenshot_'):
-                    screenshot_files.append(file_path)
-                elif filename.lower().endswith('.xlsx'):
-                    excel_files.append(file_path)
+            # Находим все group_ папки
+            group_folders = [
+                f for f in os.listdir(base_path)
+                if os.path.isdir(os.path.join(base_path, f)) and f.startswith('group_')
+            ]
 
-            # Удаляем только скриншоты
-            deleted_count = 0
-            for screenshot_file in screenshot_files:
+            if not group_folders:
+                return True, "Нет group_ папок для очистки"
+
+            deleted_folders_count = 0
+
+            # Удаляем каждую group_ папку
+            for folder in group_folders:
+                folder_path = os.path.join(base_path, folder)
                 try:
-                    os.remove(screenshot_file)
-                    deleted_count += 1
-                    logger.debug(f"Удален: {os.path.basename(screenshot_file)}")
+                    # Рекурсивно удаляем папку со всем содержимым
+                    shutil.rmtree(folder_path)
+                    deleted_folders_count += 1
+                    logger.info(f"Удалена папка: {folder}")
+                    
                 except Exception as e:
-                    logger.error(f"Ошибка удаления {screenshot_file}: {e}")
+                    logger.error(f"Ошибка удаления папки {folder}: {e}")
+                    return False, f"Ошибка удаления папки {folder}"
 
-            # Сбрасываем счетчик скриншотов
+            # Сбрасываем состояние менеджера скриншотов
             screenshot_manager.screenshot_count = 0
             screenshot_manager.screenshot_taken.emit(0)
+            
+            # Сбрасываем группировку
+            screenshot_manager.group_index = 1
+            screenshot_manager.current_group = f"group_{screenshot_manager.group_index:03d}"
+            # Создаем первую группу заново
+            new_group_path = os.path.join(base_path, screenshot_manager.current_group)
+            os.makedirs(new_group_path, exist_ok=True)
+            screenshot_manager.save_path = new_group_path
 
-            logger.info(f"Очистка завершена: удалено {deleted_count} скриншотов, сохранено {len(excel_files)} Excel файлов")
-            return True, f"Удалено {deleted_count} скриншотов. Сохранено {len(excel_files)} Excel файлов."
+            logger.info(f"Очистка завершена: удалено {deleted_folders_count} папок")
+            
+            return True, f"Удалено {deleted_folders_count} папок со скриншотами"
 
         except Exception as e:
             logger.error(f"Ошибка очистки папки: {str(e)}")

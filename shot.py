@@ -13,7 +13,7 @@ class ScreenshotManager(QObject):
     screenshot_taken = pyqtSignal(int)
     status_changed = pyqtSignal(str)
     progress_changed = pyqtSignal(int, bool)
-    capture_error_detected = pyqtSignal()  # Новый сигнал для ошибки захвата
+    capture_error_detected = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -23,14 +23,18 @@ class ScreenshotManager(QObject):
         self.hotkey_enabled = False
         self.hotkey_registered = False
         self._zip_thread = None
-        self._consecutive_fullscreen_count = 0  # Счетчик последовательных скриншотов всего экрана
-        self.is_capturing = False  # Флаг блокировки
-        self.last_capture_time = 0  # Время последнего скриншота
-        self.min_interval = config.min_interval  # Минимальный интервал между скриншотами
-        self.max_screenshots = config.max_screenshots  # Максимальное количество скриншотов
-        self.last_delete_time = 0  # Время последнего удаления
-        self.delete_cooldown = 2.0  # Задержка 2 секунды между удалениями
-
+        self._consecutive_fullscreen_count = 0
+        self.is_capturing = False
+        self.last_capture_time = 0
+        self.min_interval = config.min_interval
+        self.max_screenshots = config.max_screenshots
+        self.last_delete_time = 0
+        self.delete_cooldown = 2.0
+        
+        # Система группировки
+        self.base_save_path = None
+        self.group_index = 1
+        self.current_group = f"group_{self.group_index:03d}"
 
     def _thread_safe_status(self, message):
         """Безопасный вызов статуса из любого потока"""
@@ -106,9 +110,9 @@ class ScreenshotManager(QObject):
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, self.main_window.restore_window)
 
-        #Логируем производительность
+        # Логируем производительность
         durations = time.time() - start_time
-        logger.performance("take_csreenshot", durations)
+        logger.performance("take_screenshot", durations)
 
     def _actually_take_screenshot(self):
         """Реальный метод создания скриншота"""
@@ -129,14 +133,20 @@ class ScreenshotManager(QObject):
                 mode = "экрана"
 
             if screenshot:
+                # Используем текущую группу для сохранения
+                current_save_path = self.get_current_group_path()
+                
+                # Создаем папку если не существует
+                os.makedirs(current_save_path, exist_ok=True)
+                
                 # Определяем формат и имя файла
                 if config.screenshot_format.upper() == "JPEG":
                     filename = f"screenshot_{self.screenshot_count:04d}.jpg"
-                    filepath = os.path.join(self.save_path, filename)
+                    filepath = os.path.join(current_save_path, filename)
                     screenshot.save(filepath, "JPEG", quality=config.screenshot_quality)
                 else:
                     filename = f"screenshot_{self.screenshot_count:04d}.png"
-                    filepath = os.path.join(self.save_path, filename)
+                    filepath = os.path.join(current_save_path, filename)
                     screenshot.save(filepath, "PNG")
 
                 self.screenshot_count += 1
@@ -154,47 +164,72 @@ class ScreenshotManager(QObject):
         finally:
             self.is_capturing = False
 
-    def set_save_path(self, path):
-        """Устанавливает путь сохранения с проверкой доступности"""
+    def set_save_path(self, folder_path):
+        """Устанавливает путь сохранения с проверкой доступности и создает группы"""
         try:
             # Проверяем что папка существует и доступна для записи
-            if not os.path.exists(path):
-                os.makedirs(path, exist_ok=True)
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path, exist_ok=True)
 
             # Проверяем возможность записи
-            test_file = os.path.join(path, "test_write.tmp")
+            test_file = os.path.join(folder_path, "test_write.tmp")
             with open(test_file, 'w') as f:
                 f.write("test")
             os.remove(test_file)
 
-            self.save_path = path
+            # Инициализация системы группировки
+            self.base_save_path = folder_path
+            self.group_index = 1
+            self.current_group = f"group_{self.group_index:03d}"
+            current_group_path = os.path.join(folder_path, self.current_group)
+            os.makedirs(current_group_path, exist_ok=True)
+        
+            self.save_path = current_group_path
             self.count_existing_screenshots()
             return True
         except Exception as e:
             print(f"Ошибка установки пути сохранения: {e}")
             return False
 
+    def next_group(self):
+        """Создаёт новую подпапку для следующего листа"""
+        if not self.base_save_path:
+            raise ValueError("Сначала нужно выбрать папку для сохранения!")
+
+        self.group_index += 1
+        self.current_group = f"group_{self.group_index:03d}"
+        current_group_path = os.path.join(self.base_save_path, self.current_group)
+        os.makedirs(current_group_path, exist_ok=True)
+        self.save_path = current_group_path
+        
+        # Сбрасываем счетчик скриншотов для новой группы
+        self.screenshot_count = 0
+        self.screenshot_taken.emit(self.screenshot_count)
+
+    def get_current_group_path(self):
+        """Возвращает путь к текущей группе"""
+        if not self.base_save_path:
+            return self.save_path
+        return os.path.join(self.base_save_path, self.current_group)
+
     def count_existing_screenshots(self):
-        if not self.save_path or not os.path.exists(self.save_path):
+        """Подсчитывает общее количество скриншотов во всех группах"""
+        if not self.base_save_path or not os.path.exists(self.base_save_path):
             self.screenshot_count = 0
             return
 
         try:
-            png_files = [f for f in os.listdir(self.save_path)
-                         if f.startswith('screenshot_') and f.endswith('.png')]
-
-            if png_files:
-                numbers = []
-                for file in png_files:
-                    try:
-                        num = int(file[11:-4])
-                        numbers.append(num)
-                    except ValueError:
-                        continue
-                self.screenshot_count = max(numbers) + 1 if numbers else 0
-            else:
-                self.screenshot_count = 0
-
+            total_count = 0
+            # Считаем все скриншоты во всех группах
+            for item in os.listdir(self.base_save_path):
+                item_path = os.path.join(self.base_save_path, item)
+                if os.path.isdir(item_path) and item.startswith('group_'):
+                    files = [f for f in os.listdir(item_path)
+                           if f.startswith('screenshot_') and 
+                           (f.endswith('.png') or f.endswith('.jpg'))]
+                    total_count += len(files)
+        
+            self.screenshot_count = total_count
             self.screenshot_taken.emit(self.screenshot_count)
         except Exception as e:
             print(f"Ошибка подсчета скриншотов: {e}")
@@ -239,7 +274,7 @@ class ScreenshotManager(QObject):
             return screenshot
 
         except Exception as e:
-            print(f"Ошибка захвати активного окна: {e}")
+            print(f"Ошибка захвата активного окна: {e}")
             return None
 
     def capture_full_screen(self):
@@ -251,12 +286,12 @@ class ScreenshotManager(QObject):
 
     def start_capture(self):
         self.capture_enabled = True
-        self._consecutive_fullscreen_count = 0  # Сбрасываем счетчик при включении
+        self._consecutive_fullscreen_count = 0
         self.status_changed.emit("Режим захвата активного окна включен")
 
     def stop_capture(self):
         self.capture_enabled = False
-        self._consecutive_fullscreen_count = 0  # Сбрасываем счетчик при выключении
+        self._consecutive_fullscreen_count = 0
         self.status_changed.emit("Режим захвата активного окна выключен")
 
     def enable_hotkey(self):
@@ -316,35 +351,44 @@ class ScreenshotManager(QObject):
                 self.status_changed.emit(f"Подождите {remaining:.1f} сек перед следующим удалением")
                 return False
 
-            if self.screenshot_count <= 0 or not self.save_path:
+            if self.screenshot_count <= 0 or not self.base_save_path:
                 logger.warning("Нет скриншотов для удаления")
                 self.status_changed.emit("Нет скриншотов для удаления")
                 return False
             
-            # Определяем номер последнего скриншота (count-1 потому что счетчик уже увеличен)
-            last_screenshot_number = self.screenshot_count - 1
+            # Находим последний скриншот во всех группах
+            last_file = None
+            last_group = None
             
-            # Формируем имя последнего файла
-            if config.screenshot_format.upper() == "JPEG":
-                filename = f"screenshot_{last_screenshot_number:04d}.jpg"
-            else:
-                filename = f"screenshot_{last_screenshot_number:04d}.png"
-                
-            filepath = os.path.join(self.save_path, filename)
+            # Ищем все группы
+            for item in os.listdir(self.base_save_path):
+                item_path = os.path.join(self.base_save_path, item)
+                if os.path.isdir(item_path) and item.startswith('group_'):
+                    # Ищем файлы в группе
+                    files = [f for f in os.listdir(item_path)
+                           if f.startswith('screenshot_') and 
+                           (f.endswith('.png') or f.endswith('.jpg'))]
+                    if files:
+                        # Сортируем по имени чтобы найти последний
+                        files.sort(reverse=True)
+                        if not last_file or files[0] > last_file:
+                            last_file = files[0]
+                            last_group = item
             
-            # Проверяем существование файла и удаляем
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                self.screenshot_count -= 1
-                self.screenshot_taken.emit(self.screenshot_count)
-                self.last_delete_time = current_time
-                logger.info(f"Удален последний скриншот: {filename}")
-                self.status_changed.emit(f"Удален скриншот: {filename}")
-                return True
-            else:
-                logger.warning(f"Файл для удаления не найден: {filepath}")
-                self.status_changed.emit("Файл для удаления не найден")
-                return False
+            if last_file and last_group:
+                filepath = os.path.join(self.base_save_path, last_group, last_file)
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    self.screenshot_count -= 1
+                    self.screenshot_taken.emit(self.screenshot_count)
+                    self.last_delete_time = current_time
+                    logger.info(f"Удален последний скриншот: {last_file}")
+                    self.status_changed.emit(f"Удален скриншот: {last_file}")
+                    return True
+            
+            logger.warning("Файл для удаления не найден")
+            self.status_changed.emit("Файл для удаления не найден")
+            return False
                 
         except Exception as e:
             error_msg = f"Ошибка удаления последнего скриншота: {e}"

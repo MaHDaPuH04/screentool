@@ -77,10 +77,10 @@ Thumbs.db
 *.lnk
 
 # Project specific
-Shots/           # если у вас отдельная папка для скриншотов
-temp/                  # временные файлы
-*.log                  # логи
-config.ini             # конфиги (если есть чувствительные данные)
+Shots/
+temp/
+*.log
+config.ini
 
 # Excel временные файлы
 ~$*.xlsx

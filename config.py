@@ -40,14 +40,30 @@ class AppConfig:
     
     # Горячие клавиши
     hotkeys: List[str] = None
+
+        # Настройки БД
+    db_server: str = ""
+    db_database: str = "advantage"
+    db_use_windows_auth: bool = True
     
+    # Словарь типов отчетов
+    report_types: dict = None
+
     def __post_init__(self):
         """Инициализация значений по умолчанию"""
         if self.vm_scan_ports is None:
             self.vm_scan_ports = [50000, 50001, 50002, 50003, 50004]
         if self.hotkeys is None:
             self.hotkeys = ["print screen", "insert"]
-    
+        if self.report_types is None:
+            self.report_types = {
+                1: "PreTIP",
+                2: "PreRun", 
+                3: "PostRun",
+                4: "Custom"
+            }
+
+
     @classmethod
     def load_from_file(cls, config_path: str = "config.json"):
         """Загружает конфигурацию из файла"""

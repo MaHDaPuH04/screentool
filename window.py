@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QCheckBox, QGroupBox,
-                             QFileDialog, QMessageBox, QProgressBar)
+                             QFileDialog, QMessageBox, QProgressBar, QComboBox)
 from PyQt6.QtCore import Qt, pyqtSignal
 from resource_path import resource_path
 from PyQt6.QtGui import QFont, QIcon
@@ -10,10 +10,10 @@ from datetime import datetime
 from excelexport import ExcelExporter
 from logger import logger
 from config import config
-from dialogs import IPInputDialog, CleanupDialog
+from dialogs import CleanupDialog
 from ui_manager import UIManager
 from file_manager import FileManager
-
+from database import db_manager
 
 
 class MainWindow(QMainWindow):
@@ -29,7 +29,10 @@ class MainWindow(QMainWindow):
         self.screenshot_manager.main_window = self
         self.excel_exporter = ExcelExporter()
         self.next_sheet_requested = False
-        self.setWindowIcon(QIcon(resource_path('icon.ico')))
+        
+        # Данные из БД
+        self.well_data = None
+        self.selected_report_type = "PreRun"  # По умолчанию
         
         # Инициализируем менеджеры
         self.ui_manager = UIManager(self)
@@ -44,6 +47,9 @@ class MainWindow(QMainWindow):
         self.update_status_style_signal.connect(self.status_label.setStyleSheet)
         self.unlock_ui_signal.connect(self._unlock_ui)
         self.show_cleanup_dialog_signal.connect(self._show_cleanup_dialog)
+
+        # Загружаем данные из БД при запуске
+        self.load_well_data()
 
     def _unlock_ui(self):
         """Разблокировка UI (вызывается через сигнал)"""
@@ -83,8 +89,8 @@ class MainWindow(QMainWindow):
         logger.debug("Окно приложения восстановлено")
 
     def setup_ui(self):
-        self.setWindowTitle("Auto Screenshot Tool v 1.0.5.1")
-        self.setFixedSize(500, 468)
+        self.setWindowTitle("Auto Screenshot Tool v 1.0.5")
+        self.setFixedSize(500, 550)
 
         # Центральный виджет
         central_widget = QWidget()
@@ -105,7 +111,6 @@ class MainWindow(QMainWindow):
         settings_group = QGroupBox("Настройки")
         settings_layout = QVBoxLayout()
 
-       
         # Переключатели (группа настроек)
         self.delete_last_checkbox = QCheckBox("Delete для удаления последнего скриншота")
         self.capture_checkbox = QCheckBox("Включить захват активного окна")
@@ -113,38 +118,69 @@ class MainWindow(QMainWindow):
         self.auto_open_check = QCheckBox("Автооткрывать Excel после экспорта")
         self.auto_open_check.setChecked(config.excel_auto_open)
                        
-
         settings_layout.addWidget(self.delete_last_checkbox)
         settings_layout.addWidget(self.capture_checkbox)
         settings_layout.addWidget(self.hotkey_checkbox)
         settings_layout.addWidget(self.auto_open_check)
         settings_group.setLayout(settings_layout)
-        layout.addWidget(settings_group) 
-
-        # Информация о папке
-        self.folder_label = QLabel("Папка сохранения: не выбрана")
-        self.folder_label.setWordWrap(True)
-        layout.addWidget(self.folder_label)
+        layout.addWidget(settings_group)
 
         # === ГРУППА ДЛЯ ВЫБОРА ПАПКИ И КНОПКИ "СЛЕДУЮЩИЙ ЛИСТ" ===
         folder_group = QGroupBox("Папка сохранения и лист Excel")
-        folder_layout = QHBoxLayout()
+        folder_layout = QVBoxLayout()
 
-        # Кнопка выбора папки
-        self.select_folder_btn = QPushButton("Выбрать папку для сохранения")
-        self.select_folder_btn.setStyleSheet("""
+        # Строка с выбором типа отчета
+        report_type_layout = QHBoxLayout()
+        report_type_layout.addWidget(QLabel("Тип отчета:"))
+        self.report_type_combo = QComboBox()
+        for key, value in config.report_types.items():
+            self.report_type_combo.addItem(value, key)
+        self.report_type_combo.currentIndexChanged.connect(self.update_preview_path)
+        report_type_layout.addWidget(self.report_type_combo)
+        folder_layout.addLayout(report_type_layout)
+
+        # Превью пути
+        self.path_preview_label = QLabel("Путь будет создан: ...")
+        self.path_preview_label.setWordWrap(True)
+        self.path_preview_label.setStyleSheet("color: gray; font-style: italic; font-size: 9pt;")
+        folder_layout.addWidget(self.path_preview_label)
+
+        # Кнопки в одной строке
+        buttons_row_layout = QHBoxLayout()
+
+        # Кнопка автоматического пути
+        self.auto_folder_btn = QPushButton("Подтвердить выбор папки")
+        self.auto_folder_btn.setStyleSheet("""
             QPushButton {
                 background-color: #696969;
                 color: white;
                 border: none;
-                padding: 8px;
+                padding: 6px;
                 border-radius: 4px;
+                font-size: 9pt;
             }
             QPushButton:hover {
                 background-color: #C0C0C0;
             }
         """)
-        self.select_folder_btn.setToolTip("Выбрать папку для скриншотов и Excel-файлов")
+        self.auto_folder_btn.setToolTip("Создать папку автоматически на основе данных БД")
+
+        # Кнопка ручного выбора
+        self.manual_folder_btn = QPushButton("Выбрать вручную")
+        self.manual_folder_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #696969;
+                color: white;
+                border: none;
+                padding: 6px;
+                border-radius: 4px;
+                font-size: 9pt;
+            }
+            QPushButton:hover {
+                background-color: #C0C0C0;
+            }
+        """)
+        self.manual_folder_btn.setToolTip("Выбрать папку вручную")
 
         # Кнопка "Следующий лист"
         self.next_sheet_btn = QPushButton("Следующий лист")
@@ -153,8 +189,9 @@ class MainWindow(QMainWindow):
                 background-color: #696969;
                 color: white;
                 border: none;
-                padding: 8px;
+                padding: 6px;
                 border-radius: 4px;
+                font-size: 9pt;
             }
             QPushButton:hover {
                 background-color: #C0C0C0;
@@ -162,8 +199,17 @@ class MainWindow(QMainWindow):
         """)
         self.next_sheet_btn.setToolTip("Следующие скриншоты будут добавлены на новый лист Excel")
 
-        folder_layout.addWidget(self.select_folder_btn)
-        folder_layout.addWidget(self.next_sheet_btn)
+        buttons_row_layout.addWidget(self.auto_folder_btn)
+        buttons_row_layout.addWidget(self.manual_folder_btn)
+        buttons_row_layout.addWidget(self.next_sheet_btn)
+
+        folder_layout.addLayout(buttons_row_layout)
+
+        # Информация о текущей папке
+        self.folder_label = QLabel("Папка сохранения: не выбрана")
+        self.folder_label.setWordWrap(True)
+        self.folder_label.setStyleSheet("font-size: 9pt;")
+        folder_layout.addWidget(self.folder_label)
 
         folder_group.setLayout(folder_layout)
         layout.addWidget(folder_group)
@@ -174,7 +220,7 @@ class MainWindow(QMainWindow):
 
         # ГРУППА ДЛЯ двух КНОПОК
         buttons_group = QGroupBox("Действия")
-        buttons_layout = QHBoxLayout()  # Горизонтальный layout для кнопок
+        buttons_layout = QHBoxLayout()
 
         # Кнопка "Экспорт в Excel"
         self.excel_btn = QPushButton("Экспорт в Excel")
@@ -216,12 +262,9 @@ class MainWindow(QMainWindow):
             """)
         self.vm_btn.setToolTip("Очистить папку от скриншотов (Excel файлы сохраняются)")     
                                          
-        # Добавляем кнопки в горизонтальный layout
         buttons_layout.addWidget(self.excel_btn)
         buttons_layout.addWidget(self.vm_btn)
     
-
-        # Устанавливаем растяжение
         buttons_layout.setStretchFactor(self.excel_btn, 1)
         buttons_layout.setStretchFactor(self.vm_btn, 1)
 
@@ -239,12 +282,14 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.status_label)
 
     def connect_signals(self):
+        # Существующие сигналы
         self.capture_checkbox.stateChanged.connect(self.toggle_capture)
         self.hotkey_checkbox.stateChanged.connect(self.toggle_hotkey)
         self.delete_last_checkbox.stateChanged.connect(self.toggle_delete_last)
-        self.select_folder_btn.clicked.connect(self.select_folder)
+        self.manual_folder_btn.clicked.connect(self.select_folder_manual)
+        self.auto_folder_btn.clicked.connect(self.select_folder_auto)
         self.excel_btn.clicked.connect(self.export_to_excel)
-        self.vm_btn.clicked.connect(self.clear_screenshots_folder) #Временно заменено на очистку папки
+        self.vm_btn.clicked.connect(self.clear_screenshots_folder)
         self.auto_open_check.stateChanged.connect(self.toggle_auto_open)
         self.next_sheet_btn.clicked.connect(self.request_next_sheet)
 
@@ -254,102 +299,127 @@ class MainWindow(QMainWindow):
         self.screenshot_manager.progress_changed.connect(self.update_progress)
         self.screenshot_manager.capture_error_detected.connect(self.show_capture_error)
 
-    def toggle_capture(self, state):
-        if state == Qt.CheckState.Checked.value:
-            if not self.screenshot_manager.save_path:
-                QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
-                self.capture_checkbox.setChecked(False)
-                return
-
-            # Проверка доступности папки
-            if not self.ui_manager.validate_save_path(self.screenshot_manager.save_path):
-                self.ui_manager.show_path_error("Папка недоступна для записи")
-                self.capture_checkbox.setChecked(False)
-                return
-
-            self.screenshot_manager.start_capture()
+    def load_well_data(self):
+        """Загружает данные по скважине из БД"""
+        if db_manager.is_connected:
+            self.well_data = db_manager.get_well_data()
+            if self.well_data:
+                self.ui_manager.update_status("Данные по скважине загружены", "color: green;")
+                self.update_preview_path()
+            else:
+                self.ui_manager.update_status("Данные по скважине не найдены", "color: orange;")
         else:
-            self.screenshot_manager.stop_capture()
+            self.ui_manager.update_status("Нет подключения к БД", "color: orange;")
 
-    def toggle_hotkey(self, state):
-        if state == Qt.CheckState.Checked.value:
-            if not self.screenshot_manager.save_path:
-                QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
-                self.hotkey_checkbox.setChecked(False)
-                return
-
-            # Проверка доступности папки
-            if not self.ui_manager.validate_save_path(self.screenshot_manager.save_path):
-                self.ui_manager.show_path_error("Папка недоступна для записи")
-                self.hotkey_checkbox.setChecked(False)
-                return
-
-            self.screenshot_manager.enable_hotkey()
+    def update_preview_path(self):
+        """Обновляет превью пути на основе выбранного типа отчета"""
+        if not self.well_data:
+            self.path_preview_label.setText("Нет данных по скважине")
+            return
+            
+        report_type_key = self.report_type_combo.currentData()
+        self.selected_report_type = config.report_types[report_type_key]
+        
+        if self.selected_report_type == "Custom":
+            preview = "D:\\Wells\\{ANNU_NAME}\\Run_{BHAR_MWD_RUN_NUM} (Custom - автонаименование)"
         else:
-            self.screenshot_manager.disable_hotkey()
+            preview = f"D:\\Wells\\{{ANNU_NAME}}\\Run_{{BHAR_MWD_RUN_NUM}}\\{self.selected_report_type}"
+        
+        # Заменяем плейсхолдеры реальными данными
+        try:
+            preview = preview.format(**self.well_data)
+            self.path_preview_label.setText(f"Путь будет создан: {preview}")
+        except Exception as e:
+            self.path_preview_label.setText("Ошибка формирования пути")
 
-    def select_folder(self):
+    def select_folder_auto(self):
+        """Создает папку по автоматическому пути на основе данных БД"""
+        if not self.well_data:
+            QMessageBox.warning(self, "Ошибка", "Нет данных по скважине из БД!")
+            return
+
+        report_type = self.selected_report_type
+        
+        # Формируем базовый путь
+        base_path = f"D:\\Wells\\{self.well_data['ANNU_NAME']}"
+        
+        if report_type == "Custom":
+            # Для Custom создаем только до Run_XXX
+            folder_path = os.path.join(base_path, f"Run_{self.well_data['BHAR_MWD_RUN_NUM']}")
+        else:
+            # Для остальных типов добавляем тип отчета
+            folder_path = os.path.join(base_path, f"Run_{self.well_data['BHAR_MWD_RUN_NUM']}\\{report_type}")
+
+        # Создаем папку
+        try:
+            os.makedirs(folder_path, exist_ok=True)
+            success = self.screenshot_manager.set_save_path(folder_path)
+            
+            if success:
+                self.folder_label.setText(f"Папка сохранения: {folder_path}")
+                self.ui_manager.reset_ui_after_folder_selection()
+                self.ui_manager.update_status(f"Создана папка: {os.path.basename(folder_path)}", "color: green;")
+            else:
+                self.ui_manager.show_folder_selection_error()
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось создать папку: {str(e)}")
+
+    def select_folder_manual(self):
+        """Ручной выбор папки (старая функциональность)"""
         folder = QFileDialog.getExistingDirectory(self, "Выберите папку для сохранения")
         if folder:
             success = self.screenshot_manager.set_save_path(folder)
             if success:
                 self.folder_label.setText(f"Папка сохранения: {folder}")
-                # Сбрасываем UI после выбора папки
                 self.ui_manager.reset_ui_after_folder_selection()
             else:
                 self.ui_manager.show_folder_selection_error()
 
-    def show_capture_error(self):
-        """Показывает сообщение об ошибке захвата"""
-        self.ui_manager.show_capture_error()
-    
-    def clear_screenshots_folder(self):
-        """Очищает папку от скриншотов"""
-        if not self.screenshot_manager.save_path:
-            QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
-            return
-        
-        clear_success, clear_message = self.file_manager.clear_screenshots_folder(self.screenshot_manager)
-        
-        if clear_success:
-            self.ui_manager.update_status(f"✅ {clear_message}", "color: green;")
-            QMessageBox.information(self, "Успех", clear_message)
-        else:
-            self.ui_manager.update_status(f"❌ {clear_message}", "color: red;")
-            QMessageBox.warning(self, "Ошибка", clear_message)
+    def generate_excel_name(self):
+        """Генерирует имя для Excel файла на основе данных БД"""
+        try:
+            if self.well_data and self.selected_report_type != "Custom":
+                report_type_key = self.report_type_combo.currentData()
+                report_type_name = config.report_types[report_type_key]
 
-    def toggle_delete_last(self, state):
-        """Включает/выключает режим удаления последнего скриншота по Delete"""
-        if state == Qt.CheckState.Checked.value:
-            self.ui_manager.update_status("Режим 'Delete для удаления' включен", "color: blue;")
-            logger.info("Включен режим удаления последнего скриншота по Delete")
-        else:
-            self.ui_manager.update_status("Режим 'Delete для удаления' выключен", "color: gray;")
-            logger.info("Выключен режим удаления последнего скриншота по Delete")
+                # Формируем имя по шаблону: BHAR_MWD_RUN_NUM_OOIN_NAME_FCTY_NAME_ANNU_NAME
+                excel_name = (f"{report_type_name}_"
+                            f"{self.well_data['BHAR_MWD_RUN_NUM']}_"
+                            f"{self.well_data['OOIN_NAME']}_"
+                            f"{self.well_data['FCTY_NAME']}_"
+                            f"{self.well_data['ANNU_NAME']}.xlsx")
+                self.ui_manager.update_status("Имя сгенерировано из БД", "color: blue;")
+                return excel_name
+            else:
+                # Для Custom или при отсутствии данных - стандартное имя
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                default_name = f"screenshots_export_{timestamp}.xlsx"
+                self.ui_manager.update_status("Имя сгенерировано по умолчанию", "color: gray;")
+                return default_name
+            
+        except Exception as e:
+            logger.error(f"Ошибка генерации имени: {e}")
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            return f"screenshots_export_{timestamp}.xlsx"
 
     def export_to_excel(self):
-        """Экспорт скриншотов в Excel с диагностикой"""
+        """Экспорт в Excel с именем из БД"""
         print("=== НАЧАТА КНОПКА ЭКСПОРТА ===")
 
         if not self.screenshot_manager.save_path:
             QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
             return
 
-        # Используем base_save_path вместо save_path для поиска всех групп
+        # Генерируем имя файла
+        excel_name = self.generate_excel_name()
+        
         export_folder = self.screenshot_manager.base_save_path if hasattr(self.screenshot_manager, 'base_save_path') else self.screenshot_manager.save_path
     
         print(f"Экспортируем из папки: {export_folder}")
-    
-        # Проверим что в папке есть подпапки
-        if export_folder and os.path.exists(export_folder):
-            subfolders = [f for f in os.listdir(export_folder) if os.path.isdir(os.path.join(export_folder, f))]
-            print(f"Найдено подпапок в {export_folder}: {len(subfolders)}")
-            print(f"Подпапки: {subfolders}")
+        print(f"Имя Excel файла: {excel_name}")
 
-        default_excel = os.path.join(
-            export_folder,
-            f"screenshots_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        )
+        default_excel = os.path.join(export_folder, excel_name)
 
         print(f"Предлагаемый путь: {default_excel}")
 
@@ -416,6 +486,68 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"Ошибка: {message}")
             self.status_label.setStyleSheet("color: red;")
             QMessageBox.warning(self, "Ошибка", message)
+
+    def toggle_capture(self, state):
+        if state == Qt.CheckState.Checked.value:
+            if not self.screenshot_manager.save_path:
+                QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
+                self.capture_checkbox.setChecked(False)
+                return
+
+            # Проверка доступности папки
+            if not self.ui_manager.validate_save_path(self.screenshot_manager.save_path):
+                self.ui_manager.show_path_error("Папка недоступна для записи")
+                self.capture_checkbox.setChecked(False)
+                return
+
+            self.screenshot_manager.start_capture()
+        else:
+            self.screenshot_manager.stop_capture()
+
+    def toggle_hotkey(self, state):
+        if state == Qt.CheckState.Checked.value:
+            if not self.screenshot_manager.save_path:
+                QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
+                self.hotkey_checkbox.setChecked(False)
+                return
+
+            # Проверка доступности папки
+            if not self.ui_manager.validate_save_path(self.screenshot_manager.save_path):
+                self.ui_manager.show_path_error("Папка недоступна для записи")
+                self.hotkey_checkbox.setChecked(False)
+                return
+
+            self.screenshot_manager.enable_hotkey()
+        else:
+            self.screenshot_manager.disable_hotkey()
+
+    def show_capture_error(self):
+        """Показывает сообщение об ошибке захвата"""
+        self.ui_manager.show_capture_error()
+    
+    def clear_screenshots_folder(self):
+        """Очищает папку от скриншотов"""
+        if not self.screenshot_manager.save_path:
+            QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
+            return
+        
+        clear_success, clear_message = self.file_manager.clear_screenshots_folder(self.screenshot_manager)
+        
+        if clear_success:
+            self.ui_manager.update_status(f"✅ {clear_message}", "color: green;")
+            QMessageBox.information(self, "Успех", clear_message)
+        else:
+            self.ui_manager.update_status(f"❌ {clear_message}", "color: red;")
+            QMessageBox.warning(self, "Ошибка", clear_message)
+
+    def toggle_delete_last(self, state):
+        """Включает/выключает режим удаления последнего скриншота по Delete"""
+        if state == Qt.CheckState.Checked.value:
+            self.ui_manager.update_status("Режим 'Delete для удаления' включен", "color: blue;")
+            logger.info("Включен режим удаления последнего скриншота по Delete")
+        else:
+            self.ui_manager.update_status("Режим 'Delete для удаления' выключен", "color: gray;")
+            logger.info("Выключен режим удаления последнего скриншота по Delete")
 
     def update_counter(self, count):
         self.ui_manager.update_counter(count)

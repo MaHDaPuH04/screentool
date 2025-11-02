@@ -1,77 +1,9 @@
 """
 Модуль диалогов для Auto Screenshot Tool
 """
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QLineEdit, 
-                             QDialogButtonBox, QMessageBox)
-from PyQt6.QtCore import Qt
-from logger import logger
-
-
-class IPInputDialog(QDialog):
-    """Диалог ввода IP адреса VM"""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Ввод IP адреса VM")
-        self.setFixedSize(300, 150)
-        self.setup_ui()
-
-    def setup_ui(self):
-        """Настройка интерфейса диалога"""
-        layout = QVBoxLayout(self)
-
-        # Текст с объяснением
-        info_label = QLabel("Введите последнюю часть IP адреса VM:")
-        info_label.setWordWrap(True)
-        layout.addWidget(info_label)
-
-        # Поле ввода
-        self.ip_input = QLineEdit()
-        self.ip_input.setPlaceholderText("Например: 128")
-        self.ip_input.textChanged.connect(self.validate_ip)
-        layout.addWidget(self.ip_input)
-
-        # Метка для ошибок
-        self.error_label = QLabel("")
-        self.error_label.setStyleSheet("color: red;")
-        layout.addWidget(self.error_label)
-
-        # Кнопки
-        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
-                                      QDialogButtonBox.StandardButton.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
-
-        # Изначально кнопка OK отключена
-        button_box.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
-
-    def validate_ip(self, text):
-        """Проверяет корректность введенного IP"""
-        try:
-            if text.strip() == "":
-                self.error_label.setText("")
-                return False
-
-            ip_part = int(text)
-            if 1 <= ip_part <= 255:
-                self.error_label.setText("")
-                # Включаем кнопку OK если IP корректен
-                self.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Ok).setEnabled(True)
-                logger.debug(f"IP валиден: {ip_part}")
-                return True
-            else:
-                self.error_label.setText("IP часть должна быть от 1 до 255")
-                self.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
-                return False
-        except ValueError:
-            self.error_label.setText("Введите число от 1 до 255")
-            self.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
-            return False
-
-    def get_ip_part(self):
-        """Возвращает введенную часть IP"""
-        return self.ip_input.text().strip()
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel,
+                             QDialogButtonBox, QMessageBox, QComboBox, QPushButton)
+import pyodbc
 
 
 class CleanupDialog:
@@ -101,7 +33,69 @@ class CleanupDialog:
         QMessageBox.warning(parent, "Ошибка очистки", clear_message)
 
 
+class ServerSelectionDialog(QDialog):
+    """Диалог выбора SQL Server"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Выбор SQL Server")
+        self.setFixedSize(400, 200)
+        self.selected_server = None
+        self.setup_ui()
 
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Текст с объяснением
+        info_label = QLabel("Где база, Лебовски?")
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        # Выпадающий список серверов
+        self.server_combo = QComboBox()
+        self.server_combo.addItem("ADVMWD1\\ADVANTAGE2017", "ADVMWD1\\ADVANTAGE2017")
+        self.server_combo.addItem("ADVMWD2\\ADVANTAGE2017", "ADVMWD2\\ADVANTAGE2017")
+        layout.addWidget(self.server_combo)
+
+        # Кнопка тестирования подключения
+        self.test_btn = QPushButton("Проверить подключение")
+        self.test_btn.clicked.connect(self.test_connection)
+        layout.addWidget(self.test_btn)
+
+        # Метка для статуса
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: green;")
+        layout.addWidget(self.status_label)
+
+        # Кнопки
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | 
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def test_connection(self):
+        """Проверяет подключение к выбранному серверу"""
+        server = self.server_combo.currentData()
+        try:
+            conn_str = (
+                f"DRIVER={{SQL Server}};"
+                f"SERVER={server};"
+                f"DATABASE=advantage;"
+                f"Trusted_Connection=yes;"
+                f"Timeout=3;"
+            )
+            conn = pyodbc.connect(conn_str)
+            conn.close()
+            self.status_label.setText("✅ Подключение успешно!")
+            self.status_label.setStyleSheet("color: green;")
+        except Exception as e:
+            self.status_label.setText(f"❌ Ошибка: {str(e)}")
+            self.status_label.setStyleSheet("color: red;")
+
+    def get_selected_server(self):
+        """Возвращает выбранный сервер"""
+        return self.server_combo.currentData()
 
 
 

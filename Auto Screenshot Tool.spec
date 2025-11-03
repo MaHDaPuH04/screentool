@@ -36,4 +36,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['icon.ico'],
+    uac_admin=True,
+    manifest='manifest.xml',
 )

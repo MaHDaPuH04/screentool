@@ -89,7 +89,7 @@ class MainWindow(QMainWindow):
         logger.debug("Окно приложения восстановлено")
 
     def setup_ui(self):
-        self.setWindowTitle("Auto Screenshot Tool v 1.0.5")
+        self.setWindowTitle("Auto Screenshot Tool v 1.0.6")
         self.setFixedSize(500, 550)
 
         # Центральный виджет
@@ -320,17 +320,26 @@ class MainWindow(QMainWindow):
         report_type_key = self.report_type_combo.currentData()
         self.selected_report_type = config.report_types[report_type_key]
         
-        if self.selected_report_type == "Custom":
-            preview = "D:\\Wells\\{ANNU_NAME}\\Run_{BHAR_MWD_RUN_NUM} (Custom - автонаименование)"
-        else:
-            preview = f"D:\\Wells\\{{ANNU_NAME}}\\Run_{{BHAR_MWD_RUN_NUM}}\\{self.selected_report_type}"
+        # Получаем данные
+        annu_name = self.well_data.get('ANNU_NAME', 'ANNU_NAME')
+        path_name = self.well_data.get('PATH_NAME', 'PATH_NAME')
+        run_num = self.well_data.get('BHAR_MWD_RUN_NUM', 'RUN_NUM')
         
-        # Заменяем плейсхолдеры реальными данными
-        try:
-            preview = preview.format(**self.well_data)
-            self.path_preview_label.setText(f"Путь будет создан: {preview}")
-        except Exception as e:
-            self.path_preview_label.setText("Ошибка формирования пути")
+        # Проверяем содержит ли PATH_NAME ANNU_NAME
+        if path_name and annu_name and annu_name in path_name:
+            # PATH_NAME содержит ANNU_NAME - короткий формат
+            if self.selected_report_type == "Custom":
+                preview = f"D:\\Wells\\{annu_name}\\Run_{run_num} (Custom)"
+            else:
+                preview = f"D:\\Wells\\{annu_name}\\Run_{run_num}\\{self.selected_report_type}"
+        else:
+            # PATH_NAME не содержит ANNU_NAME - полный формат
+            if self.selected_report_type == "Custom":
+                preview = f"D:\\Wells\\{annu_name}\\{path_name}\\Run_{run_num} (Custom)"
+            else:
+                preview = f"D:\\Wells\\{annu_name}\\{path_name}\\Run_{run_num}\\{self.selected_report_type}"
+        
+        self.path_preview_label.setText(f"Путь будет создан: {preview}")
 
     def select_folder_auto(self):
         """Создает папку по автоматическому пути на основе данных БД"""
@@ -340,15 +349,31 @@ class MainWindow(QMainWindow):
 
         report_type = self.selected_report_type
         
-        # Формируем базовый путь
-        base_path = f"D:\\Wells\\{self.well_data['ANNU_NAME']}"
+        # Получаем данные
+        annu_name = self.well_data.get('ANNU_NAME', '')
+        path_name = self.well_data.get('PATH_NAME', '')
+        run_num = self.well_data.get('BHAR_MWD_RUN_NUM', '')
         
-        if report_type == "Custom":
-            # Для Custom создаем только до Run_XXX
-            folder_path = os.path.join(base_path, f"Run_{self.well_data['BHAR_MWD_RUN_NUM']}")
+        if not annu_name:
+            QMessageBox.warning(self, "Ошибка", "Не найдено имя скважины (ANNU_NAME) в БД!")
+            return
+        
+        # Формируем базовый путь
+        base_path = f"D:\\Wells\\{annu_name}"
+        
+        # Проверяем содержит ли PATH_NAME ANNU_NAME
+        if path_name and annu_name and annu_name in path_name:
+            # PATH_NAME содержит ANNU_NAME - используем короткий путь
+            if report_type == "Custom":
+                folder_path = os.path.join(base_path, f"Run_{run_num}")
+            else:
+                folder_path = os.path.join(base_path, f"Run_{run_num}\\{report_type}")
         else:
-            # Для остальных типов добавляем тип отчета
-            folder_path = os.path.join(base_path, f"Run_{self.well_data['BHAR_MWD_RUN_NUM']}\\{report_type}")
+            # PATH_NAME не содержит ANNU_NAME - добавляем PATH_NAME в путь
+            if report_type == "Custom":
+                folder_path = os.path.join(base_path, path_name, f"Run_{run_num}")
+            else:
+                folder_path = os.path.join(base_path, path_name, f"Run_{run_num}\\{report_type}")
 
         # Создаем папку
         try:
@@ -380,15 +405,24 @@ class MainWindow(QMainWindow):
         """Генерирует имя для Excel файла на основе данных БД"""
         try:
             if self.well_data and self.selected_report_type != "Custom":
-                report_type_key = self.report_type_combo.currentData()
-                report_type_name = config.report_types[report_type_key]
-
-                # Формируем имя по шаблону: BHAR_MWD_RUN_NUM_OOIN_NAME_FCTY_NAME_ANNU_NAME
-                excel_name = (f"{report_type_name}_"
-                            f"{self.well_data['BHAR_MWD_RUN_NUM']}_"
-                            f"{self.well_data['OOIN_NAME']}_"
-                            f"{self.well_data['FCTY_NAME']}_"
-                            f"{self.well_data['ANNU_NAME']}.xlsx")
+                # Проверяем содержит ли PATH_NAME ANNU_NAME
+                path_name = self.well_data.get('PATH_NAME', '')
+                annu_name = self.well_data.get('ANNU_NAME', '')
+                
+                if path_name and annu_name and annu_name in path_name:
+                    # PATH_NAME содержит ANNU_NAME - используем короткий формат
+                    excel_name = (f"{self.selected_report_type}_{self.well_data['BHAR_MWD_RUN_NUM']}_"
+                                f"{self.well_data['OOIN_NAME']}_"
+                                f"{self.well_data['FCTY_NAME']}_"
+                                f"{annu_name}.xlsx")
+                else:
+                    # PATH_NAME не содержит ANNU_NAME - используем полный формат
+                    excel_name = (f"{self.selected_report_type}_{self.well_data['BHAR_MWD_RUN_NUM']}_"
+                                f"{self.well_data['OOIN_NAME']}_"
+                                f"{self.well_data['FCTY_NAME']}_"
+                                f"{annu_name}_"
+                                f"{path_name}.xlsx")
+                
                 self.ui_manager.update_status("Имя сгенерировано из БД", "color: blue;")
                 return excel_name
             else:
@@ -397,7 +431,7 @@ class MainWindow(QMainWindow):
                 default_name = f"screenshots_export_{timestamp}.xlsx"
                 self.ui_manager.update_status("Имя сгенерировано по умолчанию", "color: gray;")
                 return default_name
-            
+                
         except Exception as e:
             logger.error(f"Ошибка генерации имени: {e}")
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

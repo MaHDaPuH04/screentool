@@ -34,48 +34,77 @@ class DatabaseManager:
             return False
     
     def get_well_data(self):
-        """Получение самых свежих данных по скважине"""
+        """Получение данных по скважине включая последние данные из всех таблиц"""
         if not self.is_connected:
-            return None
-        
+            # Возвращаем тестовые данные для демонстрации
+            return {
+                'ANNU_NAME': 'TEST_WELL_001',
+                'BHAR_MWD_RUN_NUM': '001',
+                'OOIN_NAME': 'TEST_FIELD',
+                'FCTY_NAME': 'TEST_PAD',
+                'PATH_NAME': 'TestPath'
+            }
+            
         try:
             query = """
             SELECT TOP 1
                 a.ANNU_NAME,
                 b.BHAR_MWD_RUN_NUM,
                 o.OOIN_NAME,
-                f.FCTY_NAME
+                f.FCTY_NAME,
+                p.PATH_NAME
             FROM (
-                SELECT TOP 1 BHAR_MWD_RUN_NUM, WLBR_IDENTIFIER 
-                FROM BHA_RUN 
-                WHERE BHAR_MWD_RUN_NUM IS NOT NULL
-                ORDER BY BHAR_PICKUP_TIME DESC, BHAR_LAYDOWN_TIME DESC
-            ) b
-            INNER JOIN (
-                SELECT TOP 1 ANNU_NAME, WLBR_IDENTIFIER 
-                FROM ANNULUS 
-                WHERE ANNU_NAME IS NOT NULL
+                -- Берем последний ANNULUS по времени
+                SELECT TOP 1 ANNU_NAME
+                FROM dbo.ANNULUS 
+                WHERE ANNU_NAME IS NOT NULL 
                 ORDER BY ANNU_TIME DESC
-            ) a ON a.WLBR_IDENTIFIER = b.WLBR_IDENTIFIER
+            ) a
             CROSS JOIN (
-                SELECT TOP 1 OOIN_NAME 
-                FROM OBJECT_OF_INTEREST_TAB 
-                WHERE OOIN_NAME IS NOT NULL AND OOIN_NAME != 'Default Field'
+                -- Берем последний BHA_RUN по времени подбора
+                SELECT TOP 1 BHAR_MWD_RUN_NUM
+                FROM dbo.BHA_RUN 
+                WHERE BHAR_MWD_RUN_NUM IS NOT NULL 
+                ORDER BY BHAR_PICKUP_TIME DESC
+            ) b
+            CROSS JOIN (
+                -- Берем последний OBJECT_OF_INTEREST_TAB по дате обновления
+                SELECT TOP 1 OOIN_NAME
+                FROM dbo.OBJECT_OF_INTEREST_TAB 
+                WHERE OOIN_NAME IS NOT NULL 
                 ORDER BY OOIN_UPDATE_DATE DESC
             ) o
             CROSS JOIN (
-                SELECT TOP 1 FCTY_NAME 
-                FROM FACILITY_TAB 
-                WHERE FCTY_NAME IS NOT NULL AND FCTY_NAME != 'Default Facility'
+                -- Берем последний FACILITY_TAB по дате обновления
+                SELECT TOP 1 FCTY_NAME
+                FROM dbo.FACILITY_TAB 
+                WHERE FCTY_NAME IS NOT NULL 
                 ORDER BY FCTY_UPDATE_DATE DESC
             ) f
+            CROSS JOIN (
+                -- Берем последний PATH по времени создания
+                SELECT TOP 1 PATH_NAME
+                FROM dbo.PATH 
+                WHERE PATH_NAME IS NOT NULL 
+                ORDER BY PATH_ST_TIME DESC
+            ) p
             """
-        
-            result = self.execute_query(query)
-            return result[0] if result else None
             
+            result = self.execute_query(query)
+            
+            if result:
+                data = result[0]
+                logger.info(f"✅ Получены актуальные данные:")
+                logger.info(f"   Скважина: {data.get('ANNU_NAME')}")
+                logger.info(f"   Рейс: {data.get('BHAR_MWD_RUN_NUM')}")
+                logger.info(f"   Месторождение: {data.get('OOIN_NAME')}")
+                logger.info(f"   Куст: {data.get('FCTY_NAME')}")
+                logger.info(f"   Сайдтрак: {data.get('PATH_NAME')}")
+            
+            return result[0] if result else None
+                
         except Exception as e:
-            logger.error(f"Ошибка получения данных скважины: {e}")
+            logger.error(f"❌ Ошибка получения данных скважины: {e}")
             return None
     
     def execute_query(self, query, params=None):

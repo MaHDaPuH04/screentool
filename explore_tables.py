@@ -21,7 +21,7 @@ def explore_tables():
         print(f"   - {table}")
     
     # 2. Структура ключевых таблиц
-    key_tables = ['ANNULUS', 'BHA_RUN', 'OBJECT_OF_INTEREST_TAB', 'FACILITY_TAB']
+    key_tables = ['ANNULUS', 'BHA_RUN', 'OBJECT_OF_INTEREST_TAB', 'FACILITY_TAB', 'MWD_TIME', 'MWD_RUN', 'PATH']
     
     for table in key_tables:
         if table in tables:
@@ -35,9 +35,18 @@ def explore_tables():
             for row in cursor.fetchall():
                 print(f"   {row.COLUMN_NAME} ({row.DATA_TYPE}) - nullable: {row.IS_NULLABLE}")
     
-    # 3. Посмотрим несколько записей из BHA_RUN
-    print(f"\n📊 ДАННЫЕ ИЗ BHA_RUN (первые 5 записей):")
-    cursor.execute("SELECT TOP 5 * FROM BHA_RUN")
+    # 3. Посмотрим несколько записей из MWD_TIME
+    print(f"\n📊 ДАННЫЕ ИЗ MWD_TIME (первые 5 записей):")
+    cursor.execute("SELECT TOP 5 * FROM MWD_TIME ORDER BY MWTI_TIME DESC")
+    columns = [column[0] for column in cursor.description]
+    print(f"   Колонки: {columns}")
+    
+    for row in cursor.fetchall():
+        print(f"   {dict(zip(columns, row))}")
+    
+    # 4. Посмотрим несколько записей из MWD_RUN
+    print(f"\n📊 ДАННЫЕ ИЗ MWD_RUN (первые 5 записей):")
+    cursor.execute("SELECT TOP 5 * FROM MWD_RUN ORDER BY MWRN_CREATION_TIME DESC")
     columns = [column[0] for column in cursor.description]
     print(f"   Колонки: {columns}")
     

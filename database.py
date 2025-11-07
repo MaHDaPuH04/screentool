@@ -77,7 +77,7 @@ class DatabaseManager:
                 p.PATH_NAME,
                 p.PATH_ST_TIME,
                 r.MWRU_DATETIME_START,
-                DATEDIFF(MINUTE, p.PATH_ST_TIME, r.MWRU_DATETIME_START) as TIME_DIFF_MINUTES,  -- Изменил порядок!
+                DATEDIFF(MINUTE, p.PATH_ST_TIME, r.MWRU_DATETIME_START) as TIME_DIFF_MINUTES,
                 CASE 
                     WHEN p.PATH_ST_TIME IS NOT NULL 
                         AND r.MWRU_DATETIME_START IS NOT NULL

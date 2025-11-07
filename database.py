@@ -82,7 +82,7 @@ class DatabaseManager:
                     WHEN p.PATH_ST_TIME IS NOT NULL 
                         AND r.MWRU_DATETIME_START IS NOT NULL
                         AND p.PATH_ST_TIME < r.MWRU_DATETIME_START  -- PATH создан ДО рейса
-                        AND DATEDIFF(MINUTE, p.PATH_ST_TIME, r.MWRU_DATETIME_START) BETWEEN 1 AND 720  -- Разница от 1 мин до 12 часов
+                        AND DATEDIFF(MINUTE, p.PATH_ST_TIME, r.MWRU_DATETIME_START) BETWEEN 1 AND 72000  -- Разница от 1 мин до 1200 часов
                     THEN 1
                     ELSE 0
                 END AS USE_PATH_IN_NAME

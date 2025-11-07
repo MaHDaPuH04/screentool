@@ -323,21 +323,26 @@ class MainWindow(QMainWindow):
         # Получаем данные
         annu_name = self.well_data.get('ANNU_NAME', 'ANNU_NAME')
         path_name = self.well_data.get('PATH_NAME', 'PATH_NAME')
-        run_num = self.well_data.get('BHAR_MWD_RUN_NUM', 'RUN_NUM')
+        run_num = self.well_data.get('MWTI_RUN_NO', 'RUN_NUM')
+        use_path = self.well_data.get('USE_PATH_IN_NAME', True)
         
-        # Проверяем содержит ли PATH_NAME ANNU_NAME
-        if path_name and annu_name and annu_name in path_name:
-            # PATH_NAME содержит ANNU_NAME - короткий формат
-            if self.selected_report_type == "Custom":
-                preview = f"D:\\Wells\\{annu_name}\\Run_{run_num} (Custom)"
-            else:
-                preview = f"D:\\Wells\\{annu_name}\\Run_{run_num}\\{self.selected_report_type}"
-        else:
-            # PATH_NAME не содержит ANNU_NAME - полный формат
+        # Проверяем, содержит ли PATH_NAME "Orig Path"
+        if path_name and "Orig Path" in path_name:
+            use_path = False
+        
+        # Формируем путь в зависимости от USE_PATH_IN_NAME
+        if use_path:
+            # Используем PATH в пути
             if self.selected_report_type == "Custom":
                 preview = f"D:\\Wells\\{annu_name}\\{path_name}\\Run_{run_num} (Custom)"
             else:
                 preview = f"D:\\Wells\\{annu_name}\\{path_name}\\Run_{run_num}\\{self.selected_report_type}"
+        else:
+            # Не используем PATH в пути
+            if self.selected_report_type == "Custom":
+                preview = f"D:\\Wells\\{annu_name}\\Run_{run_num} (Custom)"
+            else:
+                preview = f"D:\\Wells\\{annu_name}\\Run_{run_num}\\{self.selected_report_type}"
         
         self.path_preview_label.setText(f"Путь будет создан: {preview}")
 
@@ -352,28 +357,33 @@ class MainWindow(QMainWindow):
         # Получаем данные
         annu_name = self.well_data.get('ANNU_NAME', '')
         path_name = self.well_data.get('PATH_NAME', '')
-        run_num = self.well_data.get('BHAR_MWD_RUN_NUM', '')
+        run_num = self.well_data.get('MWTI_RUN_NO', '')
+        use_path = self.well_data.get('USE_PATH_IN_NAME', True)
         
         if not annu_name:
             QMessageBox.warning(self, "Ошибка", "Не найдено имя скважины (ANNU_NAME) в БД!")
             return
         
+        # Проверяем, содержит ли PATH_NAME "Orig Path"
+        if path_name and "Orig Path" in path_name:
+            use_path = False
+        
         # Формируем базовый путь
         base_path = f"D:\\Wells\\{annu_name}"
         
-        # Проверяем содержит ли PATH_NAME ANNU_NAME
-        if path_name and annu_name and annu_name in path_name:
-            # PATH_NAME содержит ANNU_NAME - используем короткий путь
-            if report_type == "Custom":
-                folder_path = os.path.join(base_path, f"Run_{run_num}")
-            else:
-                folder_path = os.path.join(base_path, f"Run_{run_num}\\{report_type}")
-        else:
-            # PATH_NAME не содержит ANNU_NAME - добавляем PATH_NAME в путь
+        # Формируем полный путь в зависимости от use_path
+        if use_path:
+            # Используем PATH в пути
             if report_type == "Custom":
                 folder_path = os.path.join(base_path, path_name, f"Run_{run_num}")
             else:
-                folder_path = os.path.join(base_path, path_name, f"Run_{run_num}\\{report_type}")
+                folder_path = os.path.join(base_path, path_name, f"Run_{run_num}", report_type)
+        else:
+            # Не используем PATH в пути
+            if report_type == "Custom":
+                folder_path = os.path.join(base_path, f"Run_{run_num}")
+            else:
+                folder_path = os.path.join(base_path, f"Run_{run_num}", report_type)
 
         # Создаем папку
         try:
@@ -405,23 +415,29 @@ class MainWindow(QMainWindow):
         """Генерирует имя для Excel файла на основе данных БД"""
         try:
             if self.well_data and self.selected_report_type != "Custom":
-                # Проверяем содержит ли PATH_NAME ANNU_NAME
+                # Получаем данные
                 path_name = self.well_data.get('PATH_NAME', '')
                 annu_name = self.well_data.get('ANNU_NAME', '')
+                run_num = self.well_data.get('MWTI_RUN_NO', 'RUN_NUM')
+                use_path = self.well_data.get('USE_PATH_IN_NAME', True)
                 
-                if path_name and annu_name and annu_name in path_name:
-                    # PATH_NAME содержит ANNU_NAME - используем короткий формат
-                    excel_name = (f"{self.selected_report_type}_{self.well_data['BHAR_MWD_RUN_NUM']}_"
-                                f"{self.well_data['OOIN_NAME']}_"
-                                f"{self.well_data['FCTY_NAME']}_"
-                                f"{annu_name}.xlsx")
-                else:
-                    # PATH_NAME не содержит ANNU_NAME - используем полный формат
-                    excel_name = (f"{self.selected_report_type}_{self.well_data['BHAR_MWD_RUN_NUM']}_"
+                # Проверяем, содержит ли PATH_NAME "Orig Path"
+                if path_name and "Orig Path" in path_name:
+                    use_path = False
+                
+                if use_path:
+                    # Используем PATH в имени файла
+                    excel_name = (f"{self.selected_report_type}_{run_num}_"
                                 f"{self.well_data['OOIN_NAME']}_"
                                 f"{self.well_data['FCTY_NAME']}_"
                                 f"{annu_name}_"
                                 f"{path_name}.xlsx")
+                else:
+                    # Не используем PATH в имени файла
+                    excel_name = (f"{self.selected_report_type}_{run_num}_"
+                                f"{self.well_data['OOIN_NAME']}_"
+                                f"{self.well_data['FCTY_NAME']}_"
+                                f"{annu_name}.xlsx")
                 
                 self.ui_manager.update_status("Имя сгенерировано из БД", "color: blue;")
                 return excel_name

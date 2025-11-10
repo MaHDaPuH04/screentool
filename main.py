@@ -33,7 +33,14 @@ def main():
         else:
             window.ui_manager.update_status(f"❌ Ошибка подключения к {selected_server}", "color: red;")
         
-        sys.exit(app.exec())
+        # ЗАПУСКАЕМ ПРИЛОЖЕНИЕ
+        result = app.exec()
+        
+        # ГАРАНТИРУЕМ ЗАКРЫТИЕ ПРЕВЬЮ ПРИ ВЫХОДЕ
+        if hasattr(window.screenshot_manager, 'preview_dialog') and window.screenshot_manager.preview_dialog:
+            window.screenshot_manager.preview_dialog.close()
+            
+        sys.exit(result)
     else:
         # Пользователь отменил выбор
         print("Выбор сервера отменен")

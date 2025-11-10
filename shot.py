@@ -7,6 +7,7 @@ import keyboard
 import win32gui
 from config import config
 from logger import logger
+from preview_dialog import PreviewDialog
 
 
 class ScreenshotManager(QObject):
@@ -14,6 +15,7 @@ class ScreenshotManager(QObject):
     status_changed = pyqtSignal(str)
     progress_changed = pyqtSignal(int, bool)
     capture_error_detected = pyqtSignal()
+    show_preview_requested = pyqtSignal(str, int)
 
     def __init__(self):
         super().__init__()
@@ -30,6 +32,13 @@ class ScreenshotManager(QObject):
         self.max_screenshots = config.max_screenshots
         self.last_delete_time = 0
         self.delete_cooldown = 2.0
+
+        self.base_save_path = None
+        self.group_index = 1
+        self.current_group = f"group_{self.group_index:03d}"
+
+        self.preview_dialog = None
+        self.last_screenshot_path = None
         
         # Система группировки
         self.base_save_path = None
@@ -149,10 +158,16 @@ class ScreenshotManager(QObject):
                     filepath = os.path.join(current_save_path, filename)
                     screenshot.save(filepath, "PNG")
 
+                self.last_screenshot_path = filepath
                 self.screenshot_count += 1
                 self.screenshot_taken.emit(self.screenshot_count)
                 self.status_changed.emit(f"Скриншот {mode} сохранен: {filename}")
                 logger.screenshot_taken(filename, mode)
+                
+                # ПОКАЗЫВАЕМ ПРЕВЬЮ ПОСЛЕ ПЕРВОГО СКРИНШОТА - через сигнал в главный поток
+                if self.screenshot_count == 1:
+                    self.show_preview_requested.emit(filepath, self.screenshot_count)
+                    
             else:
                 logger.error("Не удалось создать скриншот")
                 self.status_changed.emit("Не удалось сделать скриншот")
@@ -463,3 +478,40 @@ class ScreenshotManager(QObject):
             pass
         if self._zip_thread and self._zip_thread.is_alive():
             self._zip_thread.join(timeout=1.0)
+
+    def show_preview_dialog(self, image_path, screenshot_count):
+        """Показывает диалог с превью скриншота - ВЫЗЫВАЕТСЯ В ГЛАВНОМ ПОТОКЕ"""
+        try:
+            # Импортируем здесь чтобы избежать циклических импортов
+            from preview_dialog import PreviewDialog
+            
+            # Создаем диалог если его нет
+            if not self.preview_dialog:
+                self.preview_dialog = PreviewDialog(self.main_window)
+                self.preview_dialog.closed.connect(self.on_preview_closed)
+            
+            # Устанавливаем скриншот и показываем
+            self.preview_dialog.set_screenshot(image_path, screenshot_count)
+            if not self.preview_dialog.isVisible():
+                self.preview_dialog.show()
+            
+            logger.debug("Превью диалог показан")
+            
+        except Exception as e:
+            logger.error(f"Ошибка показа превью: {e}")
+    
+    def on_preview_closed(self):
+        """Обработчик закрытия диалога превью"""
+        logger.debug("Превью диалог закрыт")
+        # Диалог не удаляем, чтобы можно было переиспользовать
+    
+    def update_preview(self, screenshot_count):
+        """Обновляет превью если диалог открыт - ВЫЗЫВАЕТСЯ В ГЛАВНОМ ПОТОКЕ"""
+        if (self.preview_dialog and 
+            self.preview_dialog.isVisible() and 
+            self.last_screenshot_path):
+            
+            self.preview_dialog.set_screenshot(
+                self.last_screenshot_path, 
+                screenshot_count
+            )

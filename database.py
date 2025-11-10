@@ -15,13 +15,16 @@ class DatabaseManager:
     def auto_connect(self):
         """Автоматическое подключение при запуске"""
         try:
-            # ИСПОЛЬЗУЕМ НАСТРОЙКИ ИЗ КОНФИГА
+            # ИСПРАВЛЕННАЯ СТРОКА ПОДКЛЮЧЕНИЯ
             self.connection_string = (
                 f"DRIVER={{SQL Server}};"
                 f"SERVER={config.db_server};"
                 f"DATABASE={config.db_database};"
                 f"Trusted_Connection=yes;"
+                f"Connection Timeout=5;"
             )
+            
+            logger.info(f"Пытаемся подключиться к: {config.db_server}, база: {config.db_database}")
             
             self.connection = pyodbc.connect(self.connection_string)
             self.is_connected = True
@@ -34,7 +37,7 @@ class DatabaseManager:
             return False
     
     def get_well_data(self):
-        """Получение данных по скважине с временной логикой PATH"""
+        """Получение данных по скважине - УПРОЩЕННЫЙ ЗАПРОС"""
         if not self.is_connected:
             # Возвращаем тестовые данные для демонстрации
             return {
@@ -47,54 +50,22 @@ class DatabaseManager:
             }
             
         try:
+            # УПРОЩЕННЫЙ ЗАПРОС - используем только основные таблицы
             query = """
-            WITH LatestRun AS (
-                -- Берем последний MWTI_RUN_NO из MWD_TIME
-                SELECT TOP 1 MWTI_RUN_NO, MWTI_TIME
-                FROM dbo.MWD_TIME 
-                WHERE MWTI_RUN_NO IS NOT NULL 
-                ORDER BY MWTI_TIME DESC
-            ),
-            RunInfo AS (
-                -- Информация о текущем рейсе из MWD_RUN
-                SELECT TOP 1 MWRU_DATETIME_START
-                FROM dbo.MWD_RUN 
-                WHERE MWRU_NUMBER = (SELECT MWTI_RUN_NO FROM LatestRun)
-                ORDER BY MWRU_DATETIME_START DESC
-            ),
-            PathInfo AS (
-                -- Последний PATH
-                SELECT TOP 1 PATH_NAME, PATH_ST_TIME
-                FROM dbo.PATH 
-                WHERE PATH_NAME IS NOT NULL 
-                ORDER BY PATH_ST_TIME DESC
-            )
-            SELECT 
+            SELECT TOP 1
                 a.ANNU_NAME,
-                lr.MWTI_RUN_NO,
+                t.MWTI_RUN_NO,
                 o.OOIN_NAME,
                 f.FCTY_NAME,
                 p.PATH_NAME,
-                p.PATH_ST_TIME,
-                r.MWRU_DATETIME_START,
-                DATEDIFF(MINUTE, p.PATH_ST_TIME, r.MWRU_DATETIME_START) as TIME_DIFF_MINUTES,
-                CASE 
-                    WHEN p.PATH_ST_TIME IS NOT NULL 
-                        AND r.MWRU_DATETIME_START IS NOT NULL
-                        AND p.PATH_ST_TIME < r.MWRU_DATETIME_START  -- PATH создан ДО рейса
-                        AND DATEDIFF(MINUTE, p.PATH_ST_TIME, r.MWRU_DATETIME_START) BETWEEN 1 AND 72000  -- Разница от 1 мин до 1200 часов
-                    THEN 1
-                    ELSE 0
-                END AS USE_PATH_IN_NAME
-            FROM (
-                SELECT TOP 1 ANNU_NAME
-                FROM dbo.ANNULUS 
-                WHERE ANNU_NAME IS NOT NULL 
-                ORDER BY ANNU_TIME DESC
-            ) a
-            CROSS JOIN LatestRun lr
-            CROSS JOIN RunInfo r
-            CROSS JOIN PathInfo p
+                1 as USE_PATH_IN_NAME
+            FROM dbo.ANNULUS a
+            CROSS JOIN (
+                SELECT TOP 1 MWTI_RUN_NO 
+                FROM dbo.MWD_TIME 
+                WHERE MWTI_RUN_NO IS NOT NULL 
+                ORDER BY MWTI_TIME DESC
+            ) t
             CROSS JOIN (
                 SELECT TOP 1 OOIN_NAME
                 FROM dbo.OBJECT_OF_INTEREST_TAB 
@@ -107,6 +78,13 @@ class DatabaseManager:
                 WHERE FCTY_NAME IS NOT NULL 
                 ORDER BY FCTY_UPDATE_DATE DESC
             ) f
+            CROSS JOIN (
+                SELECT TOP 1 PATH_NAME
+                FROM dbo.PATH 
+                WHERE PATH_NAME IS NOT NULL 
+                ORDER BY PATH_ST_TIME DESC
+            ) p
+            ORDER BY a.ANNU_TIME DESC
             """
             
             result = self.execute_query(query)
@@ -129,9 +107,6 @@ class DatabaseManager:
                 logger.info(f"   Месторождение: {data.get('OOIN_NAME')}")
                 logger.info(f"   Куст: {data.get('FCTY_NAME')}")
                 logger.info(f"   Сайдтрак: {data.get('PATH_NAME')}")
-                logger.info(f"   PATH_ST_TIME: {data.get('PATH_ST_TIME')}")
-                logger.info(f"   MWRU_DATETIME_START: {data.get('MWRU_DATETIME_START')}")
-                logger.info(f"   TIME_DIFF_MINUTES: {data.get('TIME_DIFF_MINUTES')}")
                 logger.info(f"   Использовать PATH в имени: {'ДА' if use_path else 'НЕТ'}")
             
                 return data
@@ -210,7 +185,6 @@ class DatabaseManager:
             self.connection.close()
             self.is_connected = False
             logger.info("Соединение с БД закрыто")
-
 
 # Глобальный экземпляр менеджера БД
 db_manager = DatabaseManager()

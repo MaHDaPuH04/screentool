@@ -48,6 +48,9 @@ class MainWindow(QMainWindow):
         self.unlock_ui_signal.connect(self._unlock_ui)
         self.show_cleanup_dialog_signal.connect(self._show_cleanup_dialog)
 
+        #СИГНАЛ ДЛЯ ПРЕВЬЮ
+        self.screenshot_manager.show_preview_requested.connect(self.handle_preview_request)
+
         # Загружаем данные из БД при запуске
         self.load_well_data()
 
@@ -601,6 +604,10 @@ class MainWindow(QMainWindow):
 
     def update_counter(self, count):
         self.ui_manager.update_counter(count)
+        
+        # ОБНОВЛЯЕМ ПРЕВЬЮ ЕСЛИ ОНО ОТКРЫТО - В ГЛАВНОМ ПОТОКЕ
+        if hasattr(self.screenshot_manager, 'update_preview'):
+            self.screenshot_manager.update_preview(count)
 
         # Если был запрос на новый лист — активируем создание и сбрасываем флаг
         if self.next_sheet_requested:
@@ -649,3 +656,10 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось создать группу: {e}")
             logger.error(f"Ошибка при создании группы: {e}")
+
+    def handle_preview_request(self, image_path, screenshot_count):
+        """Обрабатывает запрос на показ превью - В ГЛАВНОМ ПОТОКЕ UI"""
+        try:
+            self.screenshot_manager.show_preview_dialog(image_path, screenshot_count)
+        except Exception as e:
+            logger.error(f"Ошибка обработки запроса превью: {e}")

@@ -41,7 +41,7 @@ class AppConfig:
     # Горячие клавиши
     hotkeys: List[str] = None
 
-        # Настройки БД
+    # Настройки БД
     db_server: str = ""
     db_database: str = "advantage"
     db_use_windows_auth: bool = True
@@ -62,7 +62,6 @@ class AppConfig:
                 3: "PostRun",
                 4: "Custom"
             }
-
 
     @classmethod
     def load_from_file(cls, config_path: str = "config.json"):

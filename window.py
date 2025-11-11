@@ -111,7 +111,7 @@ class MainWindow(QMainWindow):
 
         # Заголовок
         title_label = QLabel("Auto Screenshot Tool")
-        title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
 
@@ -120,15 +120,15 @@ class MainWindow(QMainWindow):
         self.help_btn.setFixedSize(30, 30)
         self.help_btn.setStyleSheet("""
             QPushButton {
-                background-color: #696969;
+                background-color: #0000FF;
                 color: white;
                 border: none;
                 border-radius: 15px;
                 font-weight: bold;
-                font-size: 14px;
+                font-size: 16px;
             }
             QPushButton:hover {
-                background-color: #C0C0C0;
+                background-color: #00BFFF;
             }
         """)
         self.help_btn.setToolTip("Открыть справку")

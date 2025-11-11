@@ -14,6 +14,7 @@ from dialogs import CleanupDialog
 from ui_manager import UIManager
 from file_manager import FileManager
 from database import db_manager
+from help_dialog import HelpDialog
 
 
 class MainWindow(QMainWindow):
@@ -47,6 +48,7 @@ class MainWindow(QMainWindow):
         self.update_status_style_signal.connect(self.status_label.setStyleSheet)
         self.unlock_ui_signal.connect(self._unlock_ui)
         self.show_cleanup_dialog_signal.connect(self._show_cleanup_dialog)
+        self.screenshot_manager.show_preview_requested.connect(self.handle_preview_request)
 
         #СИГНАЛ ДЛЯ ПРЕВЬЮ
         self.screenshot_manager.show_preview_requested.connect(self.handle_preview_request)
@@ -92,7 +94,7 @@ class MainWindow(QMainWindow):
         logger.debug("Окно приложения восстановлено")
 
     def setup_ui(self):
-        self.setWindowTitle("Auto Screenshot Tool v 1.0.6")
+        self.setWindowTitle(f"Auto Screenshot Tool v 1.0.7")
         self.setFixedSize(500, 550)
 
         # Центральный виджет
@@ -104,11 +106,37 @@ class MainWindow(QMainWindow):
         layout.setSpacing(15)
         layout.setContentsMargins(20, 20, 20, 20)
 
+        # === ЗАГОЛОВОЧНАЯ СТРОКА С КНОПКОЙ СПРАВКИ ===
+        header_layout = QHBoxLayout()
+
         # Заголовок
         title_label = QLabel("Auto Screenshot Tool")
         title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
+
+        # Кнопка справки
+        self.help_btn = QPushButton("?")
+        self.help_btn.setFixedSize(30, 30)
+        self.help_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #696969;
+                color: white;
+                border: none;
+                border-radius: 15px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #C0C0C0;
+            }
+        """)
+        self.help_btn.setToolTip("Открыть справку")
+        
+        header_layout.addWidget(title_label)
+        header_layout.addWidget(self.help_btn)
+        
+        layout.addLayout(header_layout)
 
         # Группа настроек
         settings_group = QGroupBox("Настройки")
@@ -295,6 +323,7 @@ class MainWindow(QMainWindow):
         self.vm_btn.clicked.connect(self.clear_screenshots_folder)
         self.auto_open_check.stateChanged.connect(self.toggle_auto_open)
         self.next_sheet_btn.clicked.connect(self.request_next_sheet)
+        self.help_btn.clicked.connect(self.show_help)
 
         # Сигналы от менеджера скриншотов
         self.screenshot_manager.screenshot_taken.connect(self.update_counter)
@@ -663,3 +692,12 @@ class MainWindow(QMainWindow):
             self.screenshot_manager.show_preview_dialog(image_path, screenshot_count)
         except Exception as e:
             logger.error(f"Ошибка обработки запроса превью: {e}")
+
+    def show_help(self):
+        """Показывает диалог справки"""
+        try:
+            help_dialog = HelpDialog(self)
+            help_dialog.exec()
+        except Exception as e:
+            logger.error(f"Ошибка открытия справки: {e}")
+            QMessageBox.warning(self, "Ошибка", "Не удалось открыть справку")

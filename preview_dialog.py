@@ -17,7 +17,7 @@ class PreviewDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Превью скриншота")
         self.setFixedSize(600, 400)
-        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        self.setWindowFlags(Qt.WindowType.Dialog)
         self.setup_ui()
         
     def setup_ui(self):

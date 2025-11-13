@@ -13,7 +13,8 @@ class HelpDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Справка - Auto Screenshot Tool")
-        self.setFixedSize(700, 600)
+        self.resize(700, 600)
+        self.setModal(False)
         self.setup_ui()
         
     def setup_ui(self):

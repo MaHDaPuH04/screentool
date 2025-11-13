@@ -55,7 +55,7 @@ class ServerSelectionDialog(QDialog):
         self.server_combo = QComboBox()
         self.server_combo.addItem("ADVMWD1\\ADVANTAGE2017", "ADVMWD1\\ADVANTAGE2017")
         self.server_combo.addItem("ADVMWD2\\ADVANTAGE2017", "ADVMWD2\\ADVANTAGE2017")
-        # self.server_combo.addItem("TyuMWD212\\ADVANTAGE2017", "TyuMWD212\\ADVANTAGE2017")
+        self.server_combo.addItem("TyuMWD212\\ADVANTAGE2017", "TyuMWD212\\ADVANTAGE2017")
         layout.addWidget(self.server_combo)
 
         # Кнопка тестирования подключения

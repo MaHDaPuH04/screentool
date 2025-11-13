@@ -47,7 +47,7 @@ class ServerSelectionDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # Текст с объяснением
-        info_label = QLabel("Где база, Лебовски?")
+        info_label = QLabel("Выберите DB полевой компьютер")
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
 

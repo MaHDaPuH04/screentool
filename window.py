@@ -701,3 +701,31 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.error(f"Ошибка открытия справки: {e}")
             QMessageBox.warning(self, "Ошибка", "Не удалось открыть справку")
+
+
+    def show(self):
+        """Переопределяем show для позиционирования в правом нижнем углу"""
+        super().show()
+        self.position_in_bottom_right()
+    
+    def position_in_bottom_right(self):
+        """Позиционирует окно в правом нижнем углу экрана"""
+        try:
+            # Получаем геометрию экрана
+            screen_geometry = self.screen().availableGeometry()
+            
+            # Вычисляем позицию в правом нижнем углу
+            x = screen_geometry.right() - self.width()
+            y = screen_geometry.bottom() - self.height() - 25
+            
+            # Гарантируем, что окно не выйдет за пределы экрана
+            x = max(screen_geometry.left(), x)
+            y = max(screen_geometry.top(), y)
+            
+            self.move(x, y)
+            logger.debug(f"Окно позиционировано в правом нижнем углу: ({x}, {y})")
+                
+        except Exception as e:
+            logger.error(f"Ошибка позиционирования окна: {e}")
+            # Fallback: стандартное позиционирование
+            super().show()

@@ -697,7 +697,7 @@ class MainWindow(QMainWindow):
         """Показывает диалог справки"""
         try:
             help_dialog = HelpDialog(self)
-            help_dialog.exec()
+            help_dialog.show()
         except Exception as e:
             logger.error(f"Ошибка открытия справки: {e}")
             QMessageBox.warning(self, "Ошибка", "Не удалось открыть справку")

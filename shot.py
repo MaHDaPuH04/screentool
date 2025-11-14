@@ -164,9 +164,7 @@ class ScreenshotManager(QObject):
                 self.status_changed.emit(f"Скриншот {mode} сохранен: {filename}")
                 logger.screenshot_taken(filename, mode)
                 
-                # ПОКАЗЫВАЕМ ПРЕВЬЮ ПОСЛЕ ПЕРВОГО СКРИНШОТА - через сигнал в главный поток
-                if self.screenshot_count == 1:
-                    self.show_preview_requested.emit(filepath, self.screenshot_count)
+                self.show_preview_requested.emit(filepath, self.screenshot_count)
                     
             else:
                 logger.error("Не удалось создать скриншот")
@@ -485,8 +483,8 @@ class ScreenshotManager(QObject):
             # Импортируем здесь чтобы избежать циклических импортов
             from preview_dialog import PreviewDialog
             
-            # Создаем диалог если его нет
-            if not self.preview_dialog:
+            # ✅ СОЗДАЕМ ДИАЛОГ ЗАНОВО ЕСЛИ ОН БЫЛ УДАЛЕН ИЛИ ЗАКРЫТ
+            if not self.preview_dialog or not self.preview_dialog.isVisible():
                 self.preview_dialog = PreviewDialog(self.main_window)
                 self.preview_dialog.closed.connect(self.on_preview_closed)
             
@@ -495,7 +493,7 @@ class ScreenshotManager(QObject):
             if not self.preview_dialog.isVisible():
                 self.preview_dialog.show()
             
-            logger.debug("Превью диалог показан")
+            logger.debug("Превью диалог показан/обновлен")
             
         except Exception as e:
             logger.error(f"Ошибка показа превью: {e}")

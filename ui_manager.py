@@ -88,11 +88,13 @@ class UIManager:
     
     def reset_ui_after_folder_selection(self):
         """Сбрасывает UI после выбора папки"""
-        self.main_window.capture_checkbox.setChecked(False)
-        self.main_window.hotkey_checkbox.setChecked(False)
-        self.screenshot_manager.stop_capture()
-        self.screenshot_manager.disable_hotkey()
-        logger.info("UI сброшен после выбора папки")
+        # Сбрасываем только если не используется автоматическая активация
+        if not hasattr(self.main_window, 'auto_activate_checkboxes') or not self.main_window.auto_activate_checkboxes:
+            self.main_window.capture_checkbox.setChecked(False)
+            self.main_window.hotkey_checkbox.setChecked(False)
+            self.screenshot_manager.stop_capture()
+            self.screenshot_manager.disable_hotkey()
+            logger.info("UI сброшен после выбора папки")
 
 
 

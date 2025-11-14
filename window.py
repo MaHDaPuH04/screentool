@@ -426,6 +426,10 @@ class MainWindow(QMainWindow):
                 self.folder_label.setText(f"Папка сохранения: {folder_path}")
                 self.ui_manager.reset_ui_after_folder_selection()
                 self.ui_manager.update_status(f"Создана папка: {os.path.basename(folder_path)}", "color: green;")
+                
+                # AВТОМАТИЧЕСКАЯ АКТИВАЦИЯ ЧЕКБОКСОВ
+                self.activate_checkboxes()
+                
             else:
                 self.ui_manager.show_folder_selection_error()
                 
@@ -440,6 +444,10 @@ class MainWindow(QMainWindow):
             if success:
                 self.folder_label.setText(f"Папка сохранения: {folder}")
                 self.ui_manager.reset_ui_after_folder_selection()
+
+                # АВТОМАТИЧЕСКАЯ АКТИВАЦИЯ ЧЕКБОКСОВ
+                self.activate_checkboxes()
+
             else:
                 self.ui_manager.show_folder_selection_error()
 
@@ -729,3 +737,24 @@ class MainWindow(QMainWindow):
             logger.error(f"Ошибка позиционирования окна: {e}")
             # Fallback: стандартное позиционирование
             super().show()
+    def activate_checkboxes(self):
+        """Автоматически активирует все чекбоксы после выбора папки"""
+        try:
+            # Активируем чекбокс захвата активного окна
+            self.capture_checkbox.setChecked(True)
+            self.screenshot_manager.start_capture()
+            
+            # Активируем чекбокс горячих клавиш
+            self.hotkey_checkbox.setChecked(True)
+            self.screenshot_manager.enable_hotkey()
+            
+            # Активируем чекбокс удаления по Delete
+            self.delete_last_checkbox.setChecked(True)
+            
+            # Обновляем статус
+            self.ui_manager.update_status("Все функции автоматически активированы!", "color: green;")
+            logger.info("Все чекбоксы автоматически активированы после выбора папки")
+            
+        except Exception as e:
+            logger.error(f"Ошибка при автоматической активации чекбоксов: {e}")
+            self.ui_manager.update_status("Ошибка активации функций", "color: orange;")

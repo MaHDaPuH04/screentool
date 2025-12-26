@@ -1,9 +1,10 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QDialog
-from window import MainWindow
 from PyQt6.QtGui import QIcon
 from resource_path import resource_path
+from config import config
 from database import db_manager
+from window import MainWindow
 
 def main():
     app = QApplication(sys.argv)
@@ -18,7 +19,6 @@ def main():
         selected_server = server_dialog.get_selected_server()
         
         # Сохраняем выбранный сервер в конфиг
-        from config import config
         config.db_server = selected_server
         config.save_to_file()
         

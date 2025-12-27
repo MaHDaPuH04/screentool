@@ -7,7 +7,6 @@ import keyboard
 import win32gui
 from config import config
 from logger import logger
-from preview_dialog import PreviewDialog
 
 
 class ScreenshotManager(QObject):
@@ -478,18 +477,21 @@ class ScreenshotManager(QObject):
             self._zip_thread.join(timeout=1.0)
 
     def show_preview_dialog(self, image_path, screenshot_count):
-        """Показывает диалог с превью скриншота - ВЫЗЫВАЕТСЯ В ГЛАВНОМ ПОТОКЕ"""
+        """Показывает диалог с превью скриншотов - ВЫЗЫВАЕТСЯ В ГЛАВНОМ ПОТОКЕ"""
         try:
-            # Импортируем здесь чтобы избежать циклических импортов
+            # Импортируем здесь, чтобы избежать циклического импорта
             from preview_dialog import PreviewDialog
             
             # ✅ СОЗДАЕМ ДИАЛОГ ЗАНОВО ЕСЛИ ОН БЫЛ УДАЛЕН ИЛИ ЗАКРЫТ
             if not self.preview_dialog or not self.preview_dialog.isVisible():
                 self.preview_dialog = PreviewDialog(self.main_window)
+                self.preview_dialog.set_screenshot_manager(self)
                 self.preview_dialog.closed.connect(self.on_preview_closed)
+                self.preview_dialog.screenshot_changed.connect(self.on_screenshot_changed_in_preview)
             
-            # Устанавливаем скриншот и показываем
+            # Устанавливаем скриншот
             self.preview_dialog.set_screenshot(image_path, screenshot_count)
+            
             if not self.preview_dialog.isVisible():
                 self.preview_dialog.show()
             
@@ -497,6 +499,11 @@ class ScreenshotManager(QObject):
             
         except Exception as e:
             logger.error(f"Ошибка показа превью: {e}")
+    
+    def on_screenshot_changed_in_preview(self, image_path):
+        """Обработчик смены скриншота в превью"""
+        # Можно обновить что-то в главном окне, если нужно
+        logger.debug(f"В превью выбран скриншот: {image_path}")
     
     def on_preview_closed(self):
         """Обработчик закрытия диалога превью"""

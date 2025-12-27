@@ -24,9 +24,9 @@ class PreviewDialog(QDialog):
         
         self.setWindowTitle("Превью скриншотов")
         # Устанавливаем фиксированный минимальный размер
-        self.setMinimumSize(600, 450)
+        self.setMinimumSize(600, 350)
         # НЕ устанавливаем фиксированный размер, чтобы можно было максимизировать
-        self.setBaseSize(600, 450)
+        self.setBaseSize(600, 350)
         
         # Стандартные флаги окна с кнопками управления
         self.setWindowFlags(
@@ -86,7 +86,7 @@ class PreviewDialog(QDialog):
             margin: 5px;
         """)
         # Устанавливаем минимальный размер для области изображения
-        self.image_label.setMinimumSize(580, 350)
+        self.image_label.setMinimumSize(580, 300)
         layout.addWidget(self.image_label, 1)  # Растягиваем по вертикали
         
         # === ПОДСКАЗКА ДЛЯ ПОЛЬЗОВАТЕЛЯ ===

@@ -30,6 +30,7 @@ class MainWindow(QMainWindow):
         self.screenshot_manager.main_window = self
         self.excel_exporter = ExcelExporter()
         self.next_sheet_requested = False
+        self.export_successful = False
         
         # Данные из БД
         self.well_data = None
@@ -94,8 +95,8 @@ class MainWindow(QMainWindow):
         logger.debug("Окно приложения восстановлено")
 
     def setup_ui(self):
-        self.setWindowTitle(f"Auto Screenshot Tool v 1.0.7")
-        self.setFixedSize(500, 550)
+        self.setWindowTitle(f"Auto Screenshot Tool v 1.0.8")
+        self.setFixedSize(500, 570)
 
         # Центральный виджет
         central_widget = QWidget()
@@ -249,6 +250,10 @@ class MainWindow(QMainWindow):
         self.counter_label = QLabel("Сделано скриншотов: 0")
         layout.addWidget(self.counter_label)
 
+        self.group_label = QLabel("Текущий лист: poll+calib")
+        self.group_label.setStyleSheet("color: #2A9D8F; font-weight: bold;")
+        layout.addWidget(self.group_label)
+
         # ГРУППА ДЛЯ двух КНОПОК
         buttons_group = QGroupBox("Действия")
         buttons_layout = QHBoxLayout()
@@ -277,7 +282,7 @@ class MainWindow(QMainWindow):
         self.vm_btn = QPushButton("Очистить Папку")
         self.vm_btn.setStyleSheet("""
                 QPushButton {
-                    background-color: #696969;
+                    background-color: #C0C0C0;
                     color: white;
                     border: none;
                     padding: 8px;
@@ -291,6 +296,8 @@ class MainWindow(QMainWindow):
                     color: #757575;
                 }
             """)
+        self.vm_btn.setEnabled(False)  # Начинаем с заблокированной кнопки
+        self.vm_btn.setToolTip("Сначала выполните экспорт в Excel")
         self.vm_btn.setToolTip("Очистить папку от скриншотов (Excel файлы сохраняются)")     
                                          
         buttons_layout.addWidget(self.excel_btn)
@@ -427,7 +434,10 @@ class MainWindow(QMainWindow):
                 self.ui_manager.reset_ui_after_folder_selection()
                 self.ui_manager.update_status(f"Создана папка: {os.path.basename(folder_path)}", "color: green;")
                 
-                # AВТОМАТИЧЕСКАЯ АКТИВАЦИЯ ЧЕКБОКСОВ
+                self.group_label.setText("Текущий лист: poll+calib")
+                self.export_successful = False
+                self.vm_btn.setEnabled(False)
+                self.vm_btn.setToolTip("Сначала выполните экспорт в Excel")
                 self.activate_checkboxes()
                 
             else:
@@ -445,7 +455,10 @@ class MainWindow(QMainWindow):
                 self.folder_label.setText(f"Папка сохранения: {folder}")
                 self.ui_manager.reset_ui_after_folder_selection()
 
-                # АВТОМАТИЧЕСКАЯ АКТИВАЦИЯ ЧЕКБОКСОВ
+                self.group_label.setText("Текущий лист: poll+calib")
+                self.export_successful = False
+                self.vm_btn.setEnabled(False)
+                self.vm_btn.setToolTip("Сначала выполните экспорт в Excel")
                 self.activate_checkboxes()
 
             else:
@@ -530,6 +543,10 @@ class MainWindow(QMainWindow):
         self.excel_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.status_label.setText("Экспорт в Excel...")
+        
+        # Пока не разблокируем кнопку очистки
+        self.vm_btn.setEnabled(False)
+        self.export_successful = False
 
         # Принудительно обновляем интерфейс
         from PyQt6.QtWidgets import QApplication
@@ -537,9 +554,8 @@ class MainWindow(QMainWindow):
 
         try:
             print("Запускаем экспорт...")
-            # Запускаем экспорт из КОРНЕВОЙ папки (где лежат group_ папки)
             result_path, message = self.excel_exporter.export_screenshots_to_excel(
-                export_folder,  # Используем корневую папку, а не текущую группу
+                export_folder,
                 excel_path
             )
 
@@ -564,6 +580,28 @@ class MainWindow(QMainWindow):
         if result_path:
             self.status_label.setText(f"Успешно: {os.path.basename(result_path)}")
             self.status_label.setStyleSheet("color: green; font-weight: bold;")
+            
+            # ✅ УСПЕШНЫЙ ЭКСПОРТ - РАЗБЛОКИРУЕМ КНОПКУ ОЧИСТКИ
+            self.export_successful = True
+            self.vm_btn.setEnabled(True)
+            self.vm_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #696969;
+                    color: white;
+                    border: none;
+                    padding: 8px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #C0C0C0;
+                }
+                QPushButton:disabled {
+                    background-color: #C0C0C0;
+                    color: #757575;
+                }
+            """)
+            self.vm_btn.setToolTip("Очистить папку от скриншотов (Excel файлы сохраняются)")
+            
             QMessageBox.information(self, "Успех", f"Создан файл:\n{os.path.basename(result_path)}")
     
             # Автоматическое открытие Excel, если включено
@@ -575,6 +613,9 @@ class MainWindow(QMainWindow):
         else:
             self.status_label.setText(f"Ошибка: {message}")
             self.status_label.setStyleSheet("color: red;")
+            # ❌ ЭКСПОРТ НЕ УДАЛСЯ - КНОПКА ОСТАЕТСЯ ЗАБЛОКИРОВАННОЙ
+            self.vm_btn.setEnabled(False)
+            self.vm_btn.setToolTip("Сначала выполните успешный экспорт в Excel")
             QMessageBox.warning(self, "Ошибка", message)
 
     def toggle_capture(self, state):
@@ -621,9 +662,56 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
             return
         
+        # ПРОВЕРКА УСПЕШНОГО ЭКСПОРТА
+        if not self.export_successful:
+            QMessageBox.warning(
+                self, 
+                "Требуется экспорт", 
+                "Сначала выполните успешный экспорт в Excel!\n"
+                "Кнопка очистки станет доступной после создания Excel файла."
+            )
+            return
+        
+        # Показываем подтверждение
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение",
+            "Вы уверены, что хотите очистить все папки со скриншотами?\n"
+            "Все группы (poll+calib, TIP, ver, TM, PDT, press_1...) будут удалены.\n\n",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
         clear_success, clear_message = self.file_manager.clear_screenshots_folder(self.screenshot_manager)
         
         if clear_success:
+            # ПРОСТО ОБНОВЛЯЕМ МЕТКУ
+            self.group_label.setText("Текущий лист: poll+calib")
+            
+            # ПОСЛЕ ОЧИСТКИ СНОВА БЛОКИРУЕМ КНОПКУ
+            self.export_successful = False
+            self.vm_btn.setEnabled(False)
+            self.vm_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #C0C0C0;
+                    color: #757575;
+                    border: none;
+                    padding: 8px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #C0C0C0;
+                }
+                QPushButton:disabled {
+                    background-color: #C0C0C0;
+                    color: #757575;
+                }
+            """)
+            self.vm_btn.setToolTip("Сначала выполните экспорт в Excel")
+            
             self.ui_manager.update_status(f"✅ {clear_message}", "color: green;")
             QMessageBox.information(self, "Успех", clear_message)
         else:
@@ -642,7 +730,13 @@ class MainWindow(QMainWindow):
     def update_counter(self, count):
         self.ui_manager.update_counter(count)
         
-        # ОБНОВЛЯЕМ ПРЕВЬЮ ЕСЛИ ОНО ОТКРЫТО - В ГЛАВНОМ ПОТОКЕ
+        # Также обновляем отображение текущей группы
+        if hasattr(self.screenshot_manager, 'current_group'):
+            group_info = f"Текущий лист: {self.screenshot_manager.current_group}"
+            self.group_label.setText(f"Текущий лист: {self.screenshot_manager.current_group}")
+            self.ui_manager.update_status(f"{group_info} | Скриншотов: {count}")
+        
+        # ОБНОВЛЯЕМ ПРЕВЬЮ ЕСЛИ ОНО ОТКРЫТО
         if hasattr(self.screenshot_manager, 'update_preview'):
             self.screenshot_manager.update_preview(count)
 
@@ -688,8 +782,11 @@ class MainWindow(QMainWindow):
         try:
             self.screenshot_manager.next_group()
             current_group = self.screenshot_manager.current_group
-            self.ui_manager.update_status(f"Создана новая группа: {current_group}", "color: blue;")
+            self.group_label.setText(f"Текущий лист: {current_group}")
+        
+            self.ui_manager.update_status(f"Создан новый лист: {current_group}", "color: blue;")
             logger.info(f"Создана новая группа: {current_group}")
+            
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось создать группу: {e}")
             logger.error(f"Ошибка при создании группы: {e}")

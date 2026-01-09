@@ -7,13 +7,10 @@ import shutil
 
 
 class FileManager:
-    """Менеджер для работы с файлами"""
-    
     @staticmethod
     def clear_screenshots_folder(screenshot_manager):
-        """Очищает папку от group_ папок со скриншотами"""
+        """Очищает папку от всех групп скриншотов"""
         try:
-            # Используем base_save_path (корневая папка)
             if not hasattr(screenshot_manager, 'base_save_path') or not screenshot_manager.base_save_path:
                 return False, "Не выбрана папка для очистки"
 
@@ -22,29 +19,32 @@ class FileManager:
             if not os.path.exists(base_path):
                 return False, "Папка не существует"
 
-            # Находим все group_ папки
-            group_folders = [
-                f for f in os.listdir(base_path)
-                if os.path.isdir(os.path.join(base_path, f)) and f.startswith('group_')
-            ]
-
-            if not group_folders:
-                return True, "Нет group_ папок для очистки"
-
+            # Получаем список всех возможных групп
+            all_groups = []
+            
+            # Предопределенные группы
+            predefined = ["poll+calib", "TIP", "ver", "TM", "PDT"]
+            all_groups.extend(predefined)
+            
+            # Press группы (до 20 для проверки)
+            for i in range(1, 21):
+                all_groups.append(f"press_{i}")
+            
             deleted_folders_count = 0
 
-            # Удаляем каждую group_ папку
-            for folder in group_folders:
-                folder_path = os.path.join(base_path, folder)
-                try:
-                    # Рекурсивно удаляем папку со всем содержимым
-                    shutil.rmtree(folder_path)
-                    deleted_folders_count += 1
-                    logger.info(f"Удалена папка: {folder}")
-                    
-                except Exception as e:
-                    logger.error(f"Ошибка удаления папки {folder}: {e}")
-                    return False, f"Ошибка удаления папки {folder}"
+            # Удаляем каждую существующую группу
+            for folder_name in all_groups:
+                folder_path = os.path.join(base_path, folder_name)
+                if os.path.exists(folder_path) and os.path.isdir(folder_path):
+                    try:
+                        # Рекурсивно удаляем папку со всем содержимым
+                        shutil.rmtree(folder_path)
+                        deleted_folders_count += 1
+                        logger.info(f"Удалена папка: {folder_name}")
+                        
+                    except Exception as e:
+                        logger.error(f"Ошибка удаления папки {folder_name}: {e}")
+                        return False, f"Ошибка удаления папки {folder_name}"
 
             # Сбрасываем состояние менеджера скриншотов
             screenshot_manager.screenshot_count = 0
@@ -52,7 +52,9 @@ class FileManager:
             
             # Сбрасываем группировку
             screenshot_manager.group_index = 1
-            screenshot_manager.current_group = f"group_{screenshot_manager.group_index:03d}"
+            screenshot_manager.press_index = 1
+            screenshot_manager.current_group = screenshot_manager.predefined_groups[0]
+            
             # Создаем первую группу заново
             new_group_path = os.path.join(base_path, screenshot_manager.current_group)
             os.makedirs(new_group_path, exist_ok=True)
@@ -65,45 +67,3 @@ class FileManager:
         except Exception as e:
             logger.error(f"Ошибка очистки папки: {str(e)}")
             return False, f"Ошибка очистки папки: {str(e)}"
-    
-    @staticmethod
-    def get_screenshot_files(save_path):
-        """Получает список файлов скриншотов"""
-        try:
-            screenshot_files = []
-            for filename in os.listdir(save_path):
-                if filename.lower().endswith('.png') and filename.startswith('screenshot_'):
-                    file_path = os.path.join(save_path, filename)
-                    screenshot_files.append(file_path)
-            return screenshot_files
-        except Exception as e:
-            logger.error(f"Ошибка получения списка скриншотов: {e}")
-            return []
-    
-    @staticmethod
-    def get_excel_files(save_path):
-        """Получает список Excel файлов"""
-        try:
-            excel_files = []
-            for filename in os.listdir(save_path):
-                if filename.lower().endswith('.xlsx'):
-                    file_path = os.path.join(save_path, filename)
-                    excel_files.append(file_path)
-            return excel_files
-        except Exception as e:
-            logger.error(f"Ошибка получения списка Excel файлов: {e}")
-            return []
-    
-    @staticmethod
-    def validate_file_path(file_path):
-        """Проверяет существование файла"""
-        if not os.path.exists(file_path):
-            logger.warning(f"Файл не найден: {file_path}")
-            return False
-        return True
-
-
-
-
-
-

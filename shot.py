@@ -42,7 +42,15 @@ class ScreenshotManager(QObject):
         # Система группировки
         self.base_save_path = None
         self.group_index = 1
-        self.current_group = f"group_{self.group_index:03d}"
+        self.predefined_groups = [
+            "poll+calib",  # 1
+            "TIP",         # 2
+            "ver",         # 3
+            "TM",          # 4
+            "PDT"          # 5
+        ]
+        self.current_group = self.predefined_groups[0]
+        self.press_index = 1
 
     def _thread_safe_status(self, message):
         """Безопасный вызов статуса из любого потока"""
@@ -192,7 +200,10 @@ class ScreenshotManager(QObject):
             # Инициализация системы группировки
             self.base_save_path = folder_path
             self.group_index = 1
-            self.current_group = f"group_{self.group_index:03d}"
+            self.press_index = 1
+            self.current_group = self.predefined_groups[0]  # "poll+calib"
+            
+            # Создаем первую группу
             current_group_path = os.path.join(folder_path, self.current_group)
             os.makedirs(current_group_path, exist_ok=True)
         
@@ -209,7 +220,17 @@ class ScreenshotManager(QObject):
             raise ValueError("Сначала нужно выбрать папку для сохранения!")
 
         self.group_index += 1
-        self.current_group = f"group_{self.group_index:03d}"
+        
+        # Определяем имя группы в зависимости от индекса
+        if self.group_index <= len(self.predefined_groups):
+            # Используем предопределенные имена для первых 5 групп
+            self.current_group = self.predefined_groups[self.group_index - 1]
+        else:
+            # Начиная с 6-й группы используем формат "press_i"
+            press_num = self.group_index - len(self.predefined_groups)
+            self.current_group = f"press_{press_num}"
+            self.press_index = press_num
+        
         current_group_path = os.path.join(self.base_save_path, self.current_group)
         os.makedirs(current_group_path, exist_ok=True)
         self.save_path = current_group_path
@@ -217,6 +238,8 @@ class ScreenshotManager(QObject):
         # Сбрасываем счетчик скриншотов для новой группы
         self.screenshot_count = 0
         self.screenshot_taken.emit(self.screenshot_count)
+        
+        logger.info(f"Создана новая группа: {self.current_group} (индекс: {self.group_index})")
 
     def get_current_group_path(self):
         """Возвращает путь к текущей группе"""
@@ -232,20 +255,86 @@ class ScreenshotManager(QObject):
 
         try:
             total_count = 0
-            # Считаем все скриншоты во всех группах
-            for item in os.listdir(self.base_save_path):
-                item_path = os.path.join(self.base_save_path, item)
-                if os.path.isdir(item_path) and item.startswith('group_'):
-                    files = [f for f in os.listdir(item_path)
+            
+            # Проверяем все возможные группы
+            all_groups = self.predefined_groups.copy()
+            
+            # Добавляем возможные press группы (до 20 для проверки)
+            for i in range(1, 21):
+                all_groups.append(f"press_{i}")
+            
+            # Считаем скриншоты в каждой существующей группе
+            for group_name in all_groups:
+                group_path = os.path.join(self.base_save_path, group_name)
+                if os.path.exists(group_path) and os.path.isdir(group_path):
+                    files = [f for f in os.listdir(group_path)
                            if f.startswith('screenshot_') and 
                            (f.endswith('.png') or f.endswith('.jpg'))]
                     total_count += len(files)
-        
+            
             self.screenshot_count = total_count
             self.screenshot_taken.emit(self.screenshot_count)
+            
+            # Определяем текущую группу (последнюю существующую или первую)
+            self._determine_current_group()
+            
+            logger.info(f"Всего скриншотов: {total_count}, текущая группа: {self.current_group}")
+            
         except Exception as e:
             print(f"Ошибка подсчета скриншотов: {e}")
             self.screenshot_count = 0
+    
+    def _determine_current_group(self):
+        """Определяет текущую группу на основе существующих папок"""
+        if not self.base_save_path:
+            return
+            
+        # Проверяем существующие группы в правильном порядке
+        all_possible_groups = []
+        
+        # Предопределенные группы
+        all_possible_groups.extend(self.predefined_groups)
+        
+        # Press группы (до 20)
+        for i in range(1, 21):
+            all_possible_groups.append(f"press_{i}")
+        
+        # Находим последнюю существующую группу
+        for group_name in reversed(all_possible_groups):
+            group_path = os.path.join(self.base_save_path, group_name)
+            if os.path.exists(group_path) and os.listdir(group_path):
+                # Нашли непустую группу
+                self.current_group = group_name
+                self.group_index = all_possible_groups.index(group_name) + 1
+                self.save_path = group_path
+                logger.info(f"Текущая группа определена как: {group_name}")
+                return
+        
+        # Если нет ни одной непустой группы, используем первую
+        self.current_group = self.predefined_groups[0]
+        self.group_index = 1
+        logger.info(f"Группы не найдены, используем: {self.current_group}")
+
+    def get_all_groups(self):
+        """Возвращает список всех существующих групп"""
+        if not self.base_save_path:
+            return []
+            
+        groups = []
+        # Проверяем предопределенные группы
+        for group_name in self.predefined_groups:
+            group_path = os.path.join(self.base_save_path, group_name)
+            if os.path.exists(group_path):
+                groups.append(group_name)
+        
+        # Проверяем press группы (до 20)
+        for i in range(1, 21):
+            group_name = f"press_{i}"
+            group_path = os.path.join(self.base_save_path, group_name)
+            if os.path.exists(group_path):
+                groups.append(group_name)
+        
+        return groups
 
     def get_active_window_rect(self):
         try:
@@ -371,35 +460,75 @@ class ScreenshotManager(QObject):
             # Находим последний скриншот во всех группах
             last_file = None
             last_group = None
+            last_group_path = None
             
-            # Ищем все группы
-            for item in os.listdir(self.base_save_path):
-                item_path = os.path.join(self.base_save_path, item)
-                if os.path.isdir(item_path) and item.startswith('group_'):
-                    # Ищем файлы в группе
-                    files = [f for f in os.listdir(item_path)
-                           if f.startswith('screenshot_') and 
-                           (f.endswith('.png') or f.endswith('.jpg'))]
-                    if files:
-                        # Сортируем по имени чтобы найти последний
-                        files.sort(reverse=True)
-                        if not last_file or files[0] > last_file:
-                            last_file = files[0]
-                            last_group = item
+            # Собираем все группы в правильном порядке
+            all_groups = []
             
-            if last_file and last_group:
-                filepath = os.path.join(self.base_save_path, last_group, last_file)
-                if os.path.exists(filepath):
-                    os.remove(filepath)
+            # Предопределенные группы
+            predefined = ["poll+calib", "TIP", "ver", "TM", "PDT"]
+            for group in predefined:
+                group_path = os.path.join(self.base_save_path, group)
+                if os.path.exists(group_path):
+                    all_groups.append((group, group_path))
+            
+            # Press группы
+            for i in range(1, 21):
+                group_name = f"press_{i}"
+                group_path = os.path.join(self.base_save_path, group_name)
+                if os.path.exists(group_path):
+                    all_groups.append((group_name, group_path))
+            
+            # Ищем последний файл
+            for group_name, group_path in reversed(all_groups):
+                files = []
+                for ext in ['.png', '.jpg', '.jpeg']:
+                    pattern = os.path.join(group_path, f"screenshot_*{ext}")
+                    import glob
+                    found_files = glob.glob(pattern)
+                    files.extend(found_files)
+                
+                if files:
+                    # Сортируем по времени создания (новые в конце)
+                    files.sort(key=lambda x: os.path.getmtime(x))
+                    last_file = files[-1]
+                    last_group = group_name
+                    last_group_path = group_path
+                    break
+            
+            if last_file and last_group_path:
+                if os.path.exists(last_file):
+                    # Сохраняем путь для оповещения превью
+                    deleted_path = last_file
+                    
+                    # Удаляем файл
+                    os.remove(last_file)
                     self.screenshot_count -= 1
-                    self.screenshot_taken.emit(self.screenshot_count)
                     self.last_delete_time = current_time
-                    logger.info(f"Удален последний скриншот: {last_file}")
-                    self.status_changed.emit(f"Удален скриншот: {last_file}")
+                    
+                    # Обновляем счетчик
+                    self.screenshot_taken.emit(self.screenshot_count)
+                    
+                    # Проверяем, пуста ли группа после удаления
+                    remaining_files = []
+                    for ext in ['.png', '.jpg', '.jpeg']:
+                        pattern = os.path.join(last_group_path, f"screenshot_*{ext}")
+                        import glob
+                        remaining_files.extend(glob.glob(pattern))
+                    
+                    logger.info(f"Удален скриншот: {os.path.basename(last_file)} из группы {last_group}")
+                    self.status_changed.emit(f"Удален скриншот: {os.path.basename(last_file)}")
+                    
+                    # ОПОВЕЩАЕМ ПРЕВЬЮ ОБ УДАЛЕНИИ
+                    self._notify_preview_about_deletion(deleted_path)
+                    
                     return True
+                else:
+                    logger.warning("Файл для удаления не найден на диске")
+            else:
+                logger.warning("Файл для удаления не найден")
+                self.status_changed.emit("Файл для удаления не найден")
             
-            logger.warning("Файл для удаления не найден")
-            self.status_changed.emit("Файл для удаления не найден")
             return False
                 
         except Exception as e:
@@ -407,6 +536,21 @@ class ScreenshotManager(QObject):
             logger.error(error_msg)
             self.status_changed.emit(error_msg)
             return False
+    def _notify_preview_about_deletion(self, deleted_path):
+        """Оповещает диалог превью об удалении скриншота"""
+        try:
+            if hasattr(self, 'preview_dialog') and self.preview_dialog and self.preview_dialog.isVisible():
+                # Используем сигнал или прямой вызов
+                if hasattr(self.preview_dialog, 'handle_screenshot_deleted'):
+                    # Вызываем в основном потоке UI
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(0, lambda: self.preview_dialog.handle_screenshot_deleted(deleted_path))
+                elif hasattr(self.preview_dialog, 'update_screenshot_list'):
+                    QTimer.singleShot(0, self.preview_dialog.update_screenshot_list)
+                    
+                logger.debug("Превью оповещено об удалении скриншота")
+        except Exception as e:
+            logger.error(f"Ошибка оповещения превью: {e}")
 
     def disable_hotkey(self):
         self.hotkey_enabled = False
@@ -512,11 +656,30 @@ class ScreenshotManager(QObject):
     
     def update_preview(self, screenshot_count):
         """Обновляет превью если диалог открыт - ВЫЗЫВАЕТСЯ В ГЛАВНОМ ПОТОКЕ"""
-        if (self.preview_dialog and 
-            self.preview_dialog.isVisible() and 
-            self.last_screenshot_path):
-            
-            self.preview_dialog.set_screenshot(
-                self.last_screenshot_path, 
-                screenshot_count
-            )
+        try:
+            if (self.preview_dialog and self.preview_dialog.isVisible()):
+                # Обновляем весь список скриншотов
+                if hasattr(self.preview_dialog, 'update_screenshot_list'):
+                    self.preview_dialog.update_screenshot_list()
+                elif self.last_screenshot_path:
+                    # Старый способ для совместимости
+                    self.preview_dialog.set_screenshot(
+                        self.last_screenshot_path, 
+                        screenshot_count
+                    )
+                    
+        except Exception as e:
+            logger.error(f"Ошибка обновления превью: {e}")
+
+    def update_preview_after_changes(self):
+        """Принудительно обновляет превью после изменений (удаления и т.д.)"""
+        try:
+            if hasattr(self, 'preview_dialog') and self.preview_dialog and self.preview_dialog.isVisible():
+                # Обновляем список скриншотов в превью
+                if hasattr(self.preview_dialog, 'update_screenshot_list'):
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(0, self.preview_dialog.update_screenshot_list)
+                    
+                logger.debug("Превью обновлено после изменений")
+        except Exception as e:
+            logger.error(f"Ошибка обновления превью: {e}")

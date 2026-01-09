@@ -16,7 +16,7 @@ class AppConfig:
     max_screenshots: int = 1000  # Максимальное количество скриншотов
     
     # Настройки окна
-    window_capture_offset: Tuple[int, int, int, int] = (8, 31, -8, -8)  # left, top, right, bottom
+    window_capture_offset: Tuple[int, int, int, int] = (8, 1, -8, -13)  # left, top, right, bottom
     
     # Настройки VM
     vm_base_ip: str = "10.7.128"

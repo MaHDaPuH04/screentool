@@ -334,3 +334,87 @@ class PreviewDialog(QDialog):
         """При закрытии испускаем сигнал"""
         self.closed.emit()
         super().closeEvent(event)
+
+    def remove_current_screenshot(self):
+        """Удаляет текущий скриншот из списка и обновляет отображение"""
+        if not self.screenshots_list or self.current_screenshot_index >= len(self.screenshots_list):
+            return False
+        
+        try:
+            # Удаляем файл с диска
+            image_path = self.screenshots_list[self.current_screenshot_index]
+            if os.path.exists(image_path):
+                os.remove(image_path)
+                logger.info(f"Удален файл: {image_path}")
+            
+            # Удаляем из списка
+            removed_path = self.screenshots_list.pop(self.current_screenshot_index)
+            
+            # Если список пуст
+            if not self.screenshots_list:
+                self.current_screenshot_index = 0
+                self.image_label.setText("Нет скриншотов")
+                self.title_label.setText("Превью скриншотов")
+                self.update_counter_display()
+                return True
+            
+            # Корректируем индекс
+            if self.current_screenshot_index >= len(self.screenshots_list):
+                self.current_screenshot_index = len(self.screenshots_list) - 1
+            
+            # Показываем новый текущий скриншот
+            if self.screenshots_list:
+                new_image_path = self.screenshots_list[self.current_screenshot_index]
+                self._display_screenshot(new_image_path)
+                self.update_counter_display()
+                self.screenshot_changed.emit(new_image_path)
+            
+            logger.debug(f"Скриншот удален, осталось: {len(self.screenshots_list)}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка удаления скриншота из превью: {e}")
+            return False
+    
+    def update_screenshot_list(self):
+        """Обновляет список скриншотов из текущей группы"""
+        self.load_all_screenshots()
+        
+        # Если список не пуст, показываем последний скриншот
+        if self.screenshots_list:
+            self.current_screenshot_index = len(self.screenshots_list) - 1
+            image_path = self.screenshots_list[self.current_screenshot_index]
+            self._display_screenshot(image_path)
+            self.update_counter_display()
+        else:
+            self.image_label.setText("Нет скриншотов")
+            self.title_label.setText("Превью скриншотов")
+            self.update_counter_display()
+    
+    def handle_screenshot_deleted(self, deleted_path):
+        """Обрабатывает удаление скриншота извне"""
+        try:
+            # Удаляем из списка, если есть
+            if deleted_path in self.screenshots_list:
+                old_index = self.screenshots_list.index(deleted_path)
+                self.screenshots_list.remove(deleted_path)
+                
+                # Корректируем текущий индекс
+                if self.current_screenshot_index >= len(self.screenshots_list):
+                    self.current_screenshot_index = max(0, len(self.screenshots_list) - 1)
+                elif self.current_screenshot_index >= old_index and self.current_screenshot_index > 0:
+                    self.current_screenshot_index -= 1
+                
+                # Обновляем отображение, если есть скриншоты
+                if self.screenshots_list:
+                    new_image_path = self.screenshots_list[self.current_screenshot_index]
+                    self._display_screenshot(new_image_path)
+                else:
+                    self.image_label.setText("Нет скриншотов")
+                    self.title_label.setText("Превью скриншотов")
+                
+                self.update_counter_display()
+                logger.debug(f"Скриншот удален из превью: {os.path.basename(deleted_path)}")
+                
+        except Exception as e:
+            logger.error(f"Ошибка обработки удаления скриншота: {e}")

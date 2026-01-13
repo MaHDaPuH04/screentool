@@ -171,7 +171,7 @@ class ExcelExporter:
                 sheet.cell(row=current_row, column=2, value=filename)
                 sheet.cell(row=current_row, column=3, 
                           value=created_time.strftime('%Y-%m-%d %H:%M:%S'))
-                sheet.cell(row=current_row, column=4, value=folder_name)
+                
                 
                 # Вычисляем количество строк для изображения
                 rows_needed = max(5, (img.height // 20) + 2)
@@ -186,15 +186,11 @@ class ExcelExporter:
         
         # Настраиваем ширину колонок если добавили скриншоты
         if added_count > 0:
-            sheet.column_dimensions['A'].width = 30  # Изображения
-            sheet.column_dimensions['B'].width = 25  # Имя файла
-            sheet.column_dimensions['C'].width = 20  # Дата
-            sheet.column_dimensions['D'].width = 15  # Группа
+            sheet.column_dimensions['A'].width = 8  # Изображения
+            sheet.column_dimensions['B'].width = 8  # Имя файла
+            sheet.column_dimensions['C'].width = 8  # Дата
+            sheet.column_dimensions['D'].width = 8  # Группа
             
-            # Добавляем заголовки
-            sheet['B1'] = 'Имя файла'
-            sheet['C1'] = 'Дата создания'
-            sheet['D1'] = 'Группа'
             
             # Стили для заголовков (опционально)
             from openpyxl.styles import Font

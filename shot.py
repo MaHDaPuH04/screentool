@@ -45,7 +45,7 @@ class ScreenshotManager(QObject):
         self.predefined_groups = [
             "poll+calib",  # 1
             "TIP",         # 2
-            "ver",         # 3
+            "verif",         # 3
             "TM",          # 4
             "PDT"          # 5
         ]
@@ -78,6 +78,16 @@ class ScreenshotManager(QObject):
     def take_screenshot(self):
         """Сделать скриншот с авто-сворачиванием окна"""
         start_time = time.time()
+
+        if not self.save_path:
+            logger.error("Не выбрана папка для сохранения. Нажмите 'Запустить'.")
+            self.status_changed.emit("❌ Папка не создана. Нажмите 'Запустить'.")
+            return
+    
+        if not os.path.exists(self.save_path):
+            logger.error(f"Папка не существует: {self.save_path}")
+            self.status_changed.emit("❌ Папка не существует. Нажмите 'Запустить'.")
+            return
         
         # Защита 1: Проверка параллельного выполнения
         if self.is_capturing:
@@ -203,11 +213,10 @@ class ScreenshotManager(QObject):
             self.press_index = 1
             self.current_group = self.predefined_groups[0]  # "poll+calib"
             
-            # Создаем первую группу
-            current_group_path = os.path.join(folder_path, self.current_group)
-            os.makedirs(current_group_path, exist_ok=True)
-        
-            self.save_path = current_group_path
+            # НЕ создаем папку сразу - она будет создана при нажатии "Запустить"
+            # Просто устанавливаем базовый путь
+            self.save_path = None
+            
             self.count_existing_screenshots()
             return True
         except Exception as e:
@@ -466,7 +475,7 @@ class ScreenshotManager(QObject):
             all_groups = []
             
             # Предопределенные группы
-            predefined = ["poll+calib", "TIP", "ver", "TM", "PDT"]
+            predefined = ["poll+calib", "TIP", "verif", "TM", "PDT"]
             for group in predefined:
                 group_path = os.path.join(self.base_save_path, group)
                 if os.path.exists(group_path):
@@ -626,7 +635,7 @@ class ScreenshotManager(QObject):
             # Импортируем здесь, чтобы избежать циклического импорта
             from preview_dialog import PreviewDialog
             
-            # ✅ СОЗДАЕМ ДИАЛОГ ЗАНОВО ЕСЛИ ОН БЫЛ УДАЛЕН ИЛИ ЗАКРЫТ
+            #  СОЗДАЕМ ДИАЛОГ ЗАНОВО ЕСЛИ ОН БЫЛ УДАЛЕН ИЛИ ЗАКРЫТ
             if not self.preview_dialog or not self.preview_dialog.isVisible():
                 self.preview_dialog = PreviewDialog(self.main_window)
                 self.preview_dialog.set_screenshot_manager(self)

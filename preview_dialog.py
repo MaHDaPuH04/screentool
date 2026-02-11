@@ -16,7 +16,7 @@ class PreviewDialog(QDialog):
     screenshot_changed = pyqtSignal(str)  # Сигнал при смене скриншота
     
     def __init__(self, parent=None, screenshot_manager=None):
-        super().__init__(parent)
+        super().__init__(None)
         self.screenshot_manager = screenshot_manager
         self.current_screenshot_index = 0
         self.screenshots_list = []

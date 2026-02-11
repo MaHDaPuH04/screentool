@@ -88,7 +88,7 @@ class ExcelExporter:
             return []
         
         # Предопределенный порядок
-        predefined_order = ["poll+calib", "TIP", "ver", "TM", "PDT"]
+        predefined_order = ["poll+calib", "TIP", "verif", "TM", "PDT"]
         
         # Все существующие папки
         all_items = os.listdir(base_path)

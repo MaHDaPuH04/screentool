@@ -1,5 +1,5 @@
 """
-Конфигурационный файл для Auto Screenshot Tool
+Конфигурационный файл для Auto Screhot Tool
 """
 import os
 from dataclasses import dataclass
@@ -10,33 +10,33 @@ class AppConfig:
     """Основные настройки приложения"""
     
     # Настройки скриншотов
-    screenshot_quality: int = 85  # Качество JPEG (1-100)
-    screenshot_format: str = "PNG"  # PNG или JPEG
-    min_interval: float = 0.8  # Минимальный интервал между скриншотами
-    max_screenshots: int = 1000  # Максимальное количество скриншотов
+    screenshot_quality: int = 85
+    screenshot_format: str = "PNG"
+    min_interval: float = 0.8
+    max_screenshots: int = 1000
     
     # Настройки окна
-    window_capture_offset: Tuple[int, int, int, int] = (8, 1, -8, -13)  # left, top, right, bottom
+    window_capture_offset: Tuple[int, int, int, int] = (8, 1, -8, -13)
     
     # Настройки VM
     vm_base_ip: str = "10.7.128"
     vm_default_port: int = 50000
-    vm_scan_ports: List[int] = None  # Порты для сканирования
-    vm_timeout: int = 5  # Таймаут подключения к VM
+    vm_scan_ports: List[int] = None
+    vm_timeout: int = 5
     
     # Настройки Excel
-    excel_auto_open: bool = True  # Автоматически открывать Excel после создания
+    excel_auto_open: bool = True
     
     # Настройки логирования
-    log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR
+    log_level: str = "INFO"
     log_file: str = "screenshot_tool.log"
-    log_max_size: int = 10 * 1024 * 1024  # 10MB
+    log_max_size: int = 10 * 1024 * 1024
     log_backup_count: int = 3
     
     # Настройки UI
     window_width: int = 500
     window_height: int = 400
-    theme: str = "Fusion"  # Fusion, Windows, etc.
+    theme: str = "Fusion"
     
     # Горячие клавиши
     hotkeys: List[str] = None
@@ -45,6 +45,12 @@ class AppConfig:
     db_server: str = ""
     db_database: str = "advantage"
     db_use_windows_auth: bool = True
+
+    # Список серверов для автоматического выбора
+    db_servers_to_try: List[str] = None
+    
+    # Таймаут подключения к БД (секунды)
+    db_connection_timeout: int = 1
     
     # Словарь типов отчетов
     report_types: dict = None
@@ -62,10 +68,15 @@ class AppConfig:
                 3: "PostRun",
                 4: "Custom"
             }
+        if self.db_servers_to_try is None:
+            self.db_servers_to_try = [
+                "ADVMWD1\\ADVANTAGE2017",
+                "ADVMWD2\\ADVANTAGE2017",
+                "TyuMWD212\\ADVANTAGE2017"
+            ]
 
     @classmethod
     def load_from_file(cls, config_path: str = "config.json"):
-        """Загружает конфигурацию из файла"""
         import json
         if os.path.exists(config_path):
             try:
@@ -77,7 +88,6 @@ class AppConfig:
         return cls()
     
     def save_to_file(self, config_path: str = "config.json"):
-        """Сохраняет конфигурацию в файл"""
         import json
         try:
             with open(config_path, 'w', encoding='utf-8') as f:
@@ -85,5 +95,4 @@ class AppConfig:
         except Exception as e:
             print(f"Ошибка сохранения конфигурации: {e}")
 
-# Глобальная конфигурация
 config = AppConfig.load_from_file()

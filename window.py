@@ -95,8 +95,8 @@ class MainWindow(QMainWindow):
         logger.debug("Окно приложения восстановлено")
 
     def setup_ui(self):
-        self.setWindowTitle(f"Auto Screenshot Tool v 1.0.8")
-        self.setFixedSize(500, 570)
+        self.setWindowTitle(f"Auto Screenshot Tool v 1.0.9")
+        self.setFixedSize(500, 520)
 
         # Центральный виджет
         central_widget = QWidget()
@@ -139,23 +139,48 @@ class MainWindow(QMainWindow):
         
         layout.addLayout(header_layout)
 
-        # Группа настроек
+        # Группа настроек (теперь одна кнопка)
         settings_group = QGroupBox("Настройки")
         settings_layout = QVBoxLayout()
 
-        # Переключатели (группа настроек)
+        # --- СКРЫТЫЕ ЧЕКБОКСЫ (логика остаётся прежней) ---
         self.delete_last_checkbox = QCheckBox("Delete для удаления последнего скриншота")
         self.capture_checkbox = QCheckBox("Включить захват активного окна")
         self.hotkey_checkbox = QCheckBox("Включить горячую клавишу Insert (Print Screen)")
         self.auto_open_check = QCheckBox("Автооткрывать Excel после экспорта")
         self.auto_open_check.setChecked(config.excel_auto_open)
-                       
-        settings_layout.addWidget(self.delete_last_checkbox)
-        settings_layout.addWidget(self.capture_checkbox)
-        settings_layout.addWidget(self.hotkey_checkbox)
-        settings_layout.addWidget(self.auto_open_check)
+
+        # Скрываем их, но оставляем как переключатели состояния
+        self.delete_last_checkbox.setVisible(False)
+        self.capture_checkbox.setVisible(False)
+        self.hotkey_checkbox.setVisible(False)
+        self.auto_open_check.setVisible(False)
+
+        # --- КНОПКА Запустить/Остановить ---
+        self.run_btn = QPushButton("Запустить")
+        self.run_btn.setFixedHeight(42)
+        self.run_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2A9D8F;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover { opacity: 0.9; }
+            QPushButton:disabled {
+                background-color: #C0C0C0;
+                color: #757575;
+            }
+        """)
+        settings_layout.addWidget(self.run_btn)
+
         settings_group.setLayout(settings_layout)
         layout.addWidget(settings_group)
+
+        # Флаг "программа активна"
+        self.is_running = False
 
         # === ГРУППА ДЛЯ ВЫБОРА ПАПКИ И КНОПКИ "СЛЕДУЮЩИЙ ЛИСТ" ===
         folder_group = QGroupBox("Папка сохранения и лист Excel")
@@ -331,6 +356,7 @@ class MainWindow(QMainWindow):
         self.auto_open_check.stateChanged.connect(self.toggle_auto_open)
         self.next_sheet_btn.clicked.connect(self.request_next_sheet)
         self.help_btn.clicked.connect(self.show_help)
+        self.run_btn.clicked.connect(self.toggle_run)
 
         # Сигналы от менеджера скриншотов
         self.screenshot_manager.screenshot_taken.connect(self.update_counter)
@@ -432,13 +458,17 @@ class MainWindow(QMainWindow):
             if success:
                 self.folder_label.setText(f"Папка сохранения: {folder_path}")
                 self.ui_manager.reset_ui_after_folder_selection()
-                self.ui_manager.update_status(f"Создана папка: {os.path.basename(folder_path)}", "color: green;")
+                self.ui_manager.update_status(f"Выбрана папка: {os.path.basename(folder_path)}", "color: green;")
                 
-                self.group_label.setText("Текущий лист: poll+calib")
+                # НЕ создаем папку poll+calib сразу
+                self.group_label.setText("Папка не создана (нажмите 'Запустить')")
                 self.export_successful = False
                 self.vm_btn.setEnabled(False)
                 self.vm_btn.setToolTip("Сначала выполните экспорт в Excel")
-                self.activate_checkboxes()
+                
+                # Не активируем функции автоматически - только по нажатию "Запустить"
+                if self.is_running:
+                    self.toggle_run()  # Останавливаем если была запущена
                 
             else:
                 self.ui_manager.show_folder_selection_error()
@@ -455,11 +485,15 @@ class MainWindow(QMainWindow):
                 self.folder_label.setText(f"Папка сохранения: {folder}")
                 self.ui_manager.reset_ui_after_folder_selection()
 
-                self.group_label.setText("Текущий лист: poll+calib")
+                # НЕ создаем папку poll+calib сразу
+                self.group_label.setText("Папка не создана (нажмите 'Запустить')")
                 self.export_successful = False
                 self.vm_btn.setEnabled(False)
                 self.vm_btn.setToolTip("Сначала выполните экспорт в Excel")
-                self.activate_checkboxes()
+                
+                # Не активируем функции автоматически - только по нажатию "Запустить"
+                if self.is_running:
+                    self.toggle_run()  # Останавливаем если была запущена
 
             else:
                 self.ui_manager.show_folder_selection_error()
@@ -581,7 +615,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"Успешно: {os.path.basename(result_path)}")
             self.status_label.setStyleSheet("color: green; font-weight: bold;")
             
-            # ✅ УСПЕШНЫЙ ЭКСПОРТ - РАЗБЛОКИРУЕМ КНОПКУ ОЧИСТКИ
+            # УСПЕШНЫЙ ЭКСПОРТ - РАЗБЛОКИРУЕМ КНОПКУ ОЧИСТКИ
             self.export_successful = True
             self.vm_btn.setEnabled(True)
             self.vm_btn.setStyleSheet("""
@@ -652,6 +686,98 @@ class MainWindow(QMainWindow):
         else:
             self.screenshot_manager.disable_hotkey()
 
+    def _update_run_button(self):
+        """Обновляет текст кнопки в зависимости от состояния"""
+        if self.is_running:
+            self.run_btn.setText("Остановить")
+            self.run_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #E76F51;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 14px;
+                }
+                QPushButton:hover { opacity: 0.9; }
+                QPushButton:disabled {
+                    background-color: #C0C0C0;
+                    color: #757575;
+                }
+            """)
+        else:
+            self.run_btn.setText("Запустить")
+            self.run_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #2A9D8F;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 14px;
+                }
+                QPushButton:hover { opacity: 0.9; }
+                QPushButton:disabled {
+                    background-color: #C0C0C0;
+                    color: #757575;
+                }
+            """)
+
+    def toggle_run(self):
+        """Запускает/останавливает все функции одной кнопкой"""
+        if not self.is_running:
+            
+            # Обновляем данные из БД перед запуском
+            self.refresh_well_data()
+
+            # ЗАПУСК ПРОГРАММЫ
+            if not self.screenshot_manager.save_path:
+                # Если папка не создана, создаем ее
+                if self.screenshot_manager.base_save_path:
+                    try:
+                        # Создаем папку poll+calib
+                        new_group_path = os.path.join(
+                            self.screenshot_manager.base_save_path, 
+                            self.screenshot_manager.current_group
+                        )
+                        os.makedirs(new_group_path, exist_ok=True)
+                        self.screenshot_manager.save_path = new_group_path
+                        
+                        logger.info(f"Создана папка: {self.screenshot_manager.current_group}")
+                        self.group_label.setText(f"Текущий лист: {self.screenshot_manager.current_group}")
+                        
+                    except Exception as e:
+                        QMessageBox.warning(self, "Ошибка", f"Не удалось создать папку: {str(e)}")
+                        return
+                else:
+                    QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
+                    return
+            
+            # Проверка доступности папки
+            if not self.ui_manager.validate_save_path(self.screenshot_manager.save_path):
+                self.ui_manager.show_path_error("Папка недоступна для записи")
+                return
+
+            # Включаем всё (через чекбоксы, чтобы отработали все существующие toggle_* обработчики)
+            self.capture_checkbox.setChecked(True)
+            self.hotkey_checkbox.setChecked(True)
+            self.delete_last_checkbox.setChecked(True)
+            self.auto_open_check.setChecked(True)
+
+            self.is_running = True
+            self.ui_manager.update_status("✅ Программа запущена (все функции включены)", "color: green;")
+        else:
+            # ОСТАНОВКА ПРОГРАММЫ
+            self.capture_checkbox.setChecked(False)
+            self.hotkey_checkbox.setChecked(False)
+            self.delete_last_checkbox.setChecked(False)
+            self.auto_open_check.setChecked(True)  # Сохраняем настройку автооткрытия
+
+            self.is_running = False
+            self.ui_manager.update_status("⏹ Программа остановлена (все функции выключены)", "color: gray;")
+
+        self._update_run_button()
+
     def show_capture_error(self):
         """Показывает сообщение об ошибке захвата"""
         self.ui_manager.show_capture_error()
@@ -689,7 +815,8 @@ class MainWindow(QMainWindow):
         
         if clear_success:
             # ПРОСТО ОБНОВЛЯЕМ МЕТКУ
-            self.group_label.setText("Текущий лист: poll+calib")
+            self.group_label.setText("Папка не создана (нажмите 'Запустить')")
+            self.update_counter(0)
             
             # ПОСЛЕ ОЧИСТКИ СНОВА БЛОКИРУЕМ КНОПКУ
             self.export_successful = False
@@ -732,8 +859,15 @@ class MainWindow(QMainWindow):
         
         # Также обновляем отображение текущей группы
         if hasattr(self.screenshot_manager, 'current_group'):
-            group_info = f"Текущий лист: {self.screenshot_manager.current_group}"
-            self.group_label.setText(f"Текущий лист: {self.screenshot_manager.current_group}")
+            if self.screenshot_manager.save_path:
+                # Папка создана
+                group_info = f"Текущий лист: {self.screenshot_manager.current_group}"
+                self.group_label.setText(f"Текущий лист: {self.screenshot_manager.current_group}")
+            else:
+                # Папка не создана
+                self.group_label.setText("Папка не создана (нажмите 'Запустить')")
+                group_info = "Папка не создана"
+            
             self.ui_manager.update_status(f"{group_info} | Скриншотов: {count}")
         
         # ОБНОВЛЯЕМ ПРЕВЬЮ ЕСЛИ ОНО ОТКРЫТО
@@ -759,6 +893,13 @@ class MainWindow(QMainWindow):
         self.ui_manager.update_progress(value, visible)
     
     def closeEvent(self, event):
+        # Аккуратно закрываем окно превью, если оно есть
+        try:
+            if hasattr(self.screenshot_manager, "preview_dialog") and self.screenshot_manager.preview_dialog:
+                self.screenshot_manager.preview_dialog.close()
+        except Exception as e:
+            logger.warning(f"Не удалось закрыть окно превью при выходе: {e}")
+
         self.screenshot_manager.cleanup()
         event.accept()
 
@@ -835,23 +976,23 @@ class MainWindow(QMainWindow):
             # Fallback: стандартное позиционирование
             super().show()
     def activate_checkboxes(self):
-        """Автоматически активирует все чекбоксы после выбора папки"""
+        """Автоматически активирует все функции после выбора папки"""
         try:
-            # Активируем чекбокс захвата активного окна
-            self.capture_checkbox.setChecked(True)
-            self.screenshot_manager.start_capture()
-            
-            # Активируем чекбокс горячих клавиш
-            self.hotkey_checkbox.setChecked(True)
-            self.screenshot_manager.enable_hotkey()
-            
-            # Активируем чекбокс удаления по Delete
-            self.delete_last_checkbox.setChecked(True)
-            
-            # Обновляем статус
-            self.ui_manager.update_status("Все функции автоматически активированы!", "color: green;")
-            logger.info("Все чекбоксы автоматически активированы после выбора папки")
-            
+            if not self.is_running:
+                self.toggle_run()
         except Exception as e:
-            logger.error(f"Ошибка при автоматической активации чекбоксов: {e}")
+            logger.error(f"Ошибка при автоматической активации: {e}")
             self.ui_manager.update_status("Ошибка активации функций", "color: orange;")
+
+    def refresh_well_data(self):
+        """Обновляет данные по скважине из БД и пересчитывает превью пути."""
+        logger.info("🔄 Обновление данных по скважине...")
+        new_data = db_manager.get_well_data()
+        if new_data:
+            self.well_data = new_data
+            self.update_preview_path()
+            self.ui_manager.update_status("✅ Данные по скважине обновлены", "color: green;")
+            logger.info("Данные успешно обновлены")
+        else:
+            self.ui_manager.update_status("⚠️ Не удалось обновить данные, используются предыдущие", "color: orange;")
+            logger.warning("Не удалось обновить данные из БД")

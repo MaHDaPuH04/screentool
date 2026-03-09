@@ -1,8 +1,7 @@
 """
 Модуль диалогов для Auto Screenshot Tool
 """
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel,
-                             QDialogButtonBox, QMessageBox, QComboBox, QPushButton)
+from PyQt6.QtWidgets import (QMessageBox)
 
 
 class CleanupDialog:

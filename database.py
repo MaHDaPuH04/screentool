@@ -4,7 +4,7 @@
 import pyodbc
 import datetime
 import concurrent.futures
-from typing import Optional, Tuple, List
+from typing import Optional
 from logger import logger
 from config import config
 

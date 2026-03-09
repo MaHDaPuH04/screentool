@@ -2,7 +2,7 @@
 Диалоговое окно справки
 """
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QPushButton, QHBoxLayout
-from PyQt6.QtCore import Qt
+# from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from help_manual import HELP_MANUAL
 

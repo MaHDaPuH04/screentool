@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         
         # Данные из БД
         self.well_data = None
+        self.selected_report_key = 2 
         self.selected_report_type = "PreRun"  # По умолчанию
         
         # Инициализируем менеджеры
@@ -357,6 +358,7 @@ class MainWindow(QMainWindow):
         self.next_sheet_btn.clicked.connect(self.request_next_sheet)
         self.help_btn.clicked.connect(self.show_help)
         self.run_btn.clicked.connect(self.toggle_run)
+        self.report_type_combo.currentIndexChanged.connect(self.on_report_type_changed)
 
         # Сигналы от менеджера скриншотов
         self.screenshot_manager.screenshot_taken.connect(self.update_counter)
@@ -365,9 +367,10 @@ class MainWindow(QMainWindow):
         self.screenshot_manager.capture_error_detected.connect(self.show_capture_error)
 
     def load_well_data(self):
-        """Загружает данные по скважине из БД"""
+        """Загружает данные при запуске"""
         if db_manager.is_connected:
-            self.well_data = db_manager.get_well_data()
+            # Передаем ключ, а не строку
+            self.well_data = db_manager.get_well_data(report_type=self.selected_report_key)
             if self.well_data:
                 self.ui_manager.update_status("Данные по скважине загружены", "color: green;")
                 self.update_preview_path()
@@ -381,9 +384,9 @@ class MainWindow(QMainWindow):
         if not self.well_data:
             self.path_preview_label.setText("Нет данных по скважине")
             return
-            
-        report_type_key = self.report_type_combo.currentData()
-        self.selected_report_type = config.report_types[report_type_key]
+        
+        # Используем selected_report_type для отображения (строка)
+        report_type_display = self.selected_report_type
         
         # Получаем данные
         annu_name = self.well_data.get('ANNU_NAME', 'ANNU_NAME')
@@ -398,16 +401,16 @@ class MainWindow(QMainWindow):
         # Формируем путь в зависимости от USE_PATH_IN_NAME
         if use_path:
             # Используем PATH в пути
-            if self.selected_report_type == "Custom":
+            if report_type_display == "Custom":
                 preview = f"D:\\Wells\\{annu_name}\\{path_name}\\Run_{run_num} (Custom)"
             else:
-                preview = f"D:\\Wells\\{annu_name}\\{path_name}\\Run_{run_num}\\{self.selected_report_type}"
+                preview = f"D:\\Wells\\{annu_name}\\{path_name}\\Run_{run_num}\\{report_type_display}"
         else:
             # Не используем PATH в пути
-            if self.selected_report_type == "Custom":
+            if report_type_display == "Custom":
                 preview = f"D:\\Wells\\{annu_name}\\Run_{run_num} (Custom)"
             else:
-                preview = f"D:\\Wells\\{annu_name}\\Run_{run_num}\\{self.selected_report_type}"
+                preview = f"D:\\Wells\\{annu_name}\\Run_{run_num}\\{report_type_display}"
         
         self.path_preview_label.setText(f"Путь будет создан: {preview}")
 
@@ -417,7 +420,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Ошибка", "Нет данных по скважине из БД!")
             return
 
-        report_type = self.selected_report_type
+        # Используем строковое представление для создания папки
+        report_type_display = self.selected_report_type
         
         # Получаем данные
         annu_name = self.well_data.get('ANNU_NAME', '')
@@ -439,16 +443,16 @@ class MainWindow(QMainWindow):
         # Формируем полный путь в зависимости от use_path
         if use_path:
             # Используем PATH в пути
-            if report_type == "Custom":
+            if report_type_display == "Custom":
                 folder_path = os.path.join(base_path, path_name, f"Run_{run_num}")
             else:
-                folder_path = os.path.join(base_path, path_name, f"Run_{run_num}", report_type)
+                folder_path = os.path.join(base_path, path_name, f"Run_{run_num}", report_type_display)
         else:
             # Не используем PATH в пути
-            if report_type == "Custom":
+            if report_type_display == "Custom":
                 folder_path = os.path.join(base_path, f"Run_{run_num}")
             else:
-                folder_path = os.path.join(base_path, f"Run_{run_num}", report_type)
+                folder_path = os.path.join(base_path, f"Run_{run_num}", report_type_display)
 
         # Создаем папку
         try:
@@ -460,15 +464,13 @@ class MainWindow(QMainWindow):
                 self.ui_manager.reset_ui_after_folder_selection()
                 self.ui_manager.update_status(f"Выбрана папка: {os.path.basename(folder_path)}", "color: green;")
                 
-                # НЕ создаем папку poll+calib сразу
                 self.group_label.setText("Папка не создана (нажмите 'Запустить')")
                 self.export_successful = False
                 self.vm_btn.setEnabled(False)
                 self.vm_btn.setToolTip("Сначала выполните экспорт в Excel")
                 
-                # Не активируем функции автоматически - только по нажатию "Запустить"
                 if self.is_running:
-                    self.toggle_run()  # Останавливаем если была запущена
+                    self.toggle_run()
                 
             else:
                 self.ui_manager.show_folder_selection_error()
@@ -512,16 +514,19 @@ class MainWindow(QMainWindow):
                 if path_name and "Orig Path" in path_name:
                     use_path = False
                 
+                # Используем строковое представление для имени файла
+                report_type_display = self.selected_report_type
+                
                 if use_path:
                     # Используем PATH в имени файла
-                    excel_name = (f"{self.selected_report_type}_{run_num}_"
+                    excel_name = (f"{report_type_display}_{run_num}_"
                                 f"{self.well_data['OOIN_NAME']}_"
                                 f"{self.well_data['FCTY_NAME']}_"
                                 f"{annu_name}_"
                                 f"{path_name}.xlsx")
                 else:
                     # Не используем PATH в имени файла
-                    excel_name = (f"{self.selected_report_type}_{run_num}_"
+                    excel_name = (f"{report_type_display}_{run_num}_"
                                 f"{self.well_data['OOIN_NAME']}_"
                                 f"{self.well_data['FCTY_NAME']}_"
                                 f"{annu_name}.xlsx")
@@ -985,14 +990,27 @@ class MainWindow(QMainWindow):
             self.ui_manager.update_status("Ошибка активации функций", "color: orange;")
 
     def refresh_well_data(self):
-        """Обновляет данные по скважине из БД и пересчитывает превью пути."""
+        """Обновляет данные по скважине"""
         logger.info("🔄 Обновление данных по скважине...")
-        new_data = db_manager.get_well_data()
-        if new_data:
-            self.well_data = new_data
-            self.update_preview_path()
-            self.ui_manager.update_status("✅ Данные по скважине обновлены", "color: green;")
-            logger.info("Данные успешно обновлены")
+        
+        if db_manager.is_connected:
+            # Передаем ключ, а не строку
+            self.well_data = db_manager.get_well_data(report_type=self.selected_report_key)
+            if self.well_data:
+                self.update_preview_path()
+                self.ui_manager.update_status("✅ Данные по скважине обновлены", "color: green;")
+                logger.info(f"Данные обновлены: рейс={self.well_data.get('MWTI_RUN_NO')}")
+            else:
+                self.ui_manager.update_status("⚠️ Не удалось обновить данные", "color: orange;")
         else:
-            self.ui_manager.update_status("⚠️ Не удалось обновить данные, используются предыдущие", "color: orange;")
-            logger.warning("Не удалось обновить данные из БД")
+            self.ui_manager.update_status("⚠️ Нет подключения к БД", "color: orange;")
+    
+    def on_report_type_changed(self, index):
+        # Получаем ключ (1,2,3,4)
+        self.selected_report_key = self.report_type_combo.currentData()
+        # Получаем значение для отображения
+        self.selected_report_type = config.report_types.get(self.selected_report_key, "Custom")
+        logger.info(f"Тип отчета изменен: ключ={self.selected_report_key}, значение={self.selected_report_type}")
+        
+        # Обновляем данные, передавая КЛЮЧ
+        self.refresh_well_data()

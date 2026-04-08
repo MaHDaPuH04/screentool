@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QCheckBox, QGroupBox,
-                             QFileDialog, QMessageBox, QProgressBar, QComboBox)
+                             QFileDialog, QMessageBox, QProgressBar, QComboBox,
+                             QTabWidget)
 from PyQt6.QtCore import Qt, pyqtSignal
 from resource_path import resource_path
 from PyQt6.QtGui import QFont, QIcon
@@ -97,14 +98,28 @@ class MainWindow(QMainWindow):
 
     def setup_ui(self):
         self.setWindowTitle(f"Auto Screenshot Tool v 1.0.10")
-        self.setFixedSize(500, 520)
+        self.setFixedSize(500, 540)
 
-        # Центральный виджет
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        # Центральный виджет с вкладками
+        self.tab_widget = QTabWidget()
+        self.setCentralWidget(self.tab_widget)
 
-        # Основной layout
-        layout = QVBoxLayout(central_widget)
+        # Создаем вкладки
+        self.tab_advantage = QWidget()
+        self.tab_aps = QWidget()
+
+        self.tab_widget.addTab(self.tab_advantage, "Advantage")
+        self.tab_widget.addTab(self.tab_aps, "APS")
+
+        # Настраиваем вкладку Advantage (основная программа)
+        self.setup_advantage_tab()
+
+        # Настраиваем вкладку APS (пока пустая)
+        self.setup_aps_tab()
+
+    def setup_advantage_tab(self):
+        """Настройка вкладки Advantage с основной логикой"""
+        layout = QVBoxLayout(self.tab_advantage)
         layout.setSpacing(15)
         layout.setContentsMargins(20, 20, 20, 20)
 
@@ -115,7 +130,6 @@ class MainWindow(QMainWindow):
         title_label = QLabel("Auto Screenshot Tool")
         title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title_label)
 
         # Кнопка справки
         self.help_btn = QPushButton("?")
@@ -141,7 +155,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(header_layout)
 
         # Группа настроек (теперь одна кнопка)
-        settings_group = QGroupBox("Настройки")
+        settings_group = QGroupBox()
         settings_layout = QVBoxLayout()
 
         # --- СКРЫТЫЕ ЧЕКБОКСЫ (логика остаётся прежней) ---
@@ -345,6 +359,29 @@ class MainWindow(QMainWindow):
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
 
+        # Добавляем растяжку в конец
+        layout.addStretch()
+
+    def setup_aps_tab(self):
+        """Настройка вкладки APS (пока пустая)"""
+        layout = QVBoxLayout(self.tab_aps)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Заголовок
+        title_label = QLabel("APS Module")
+        title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+        
+        # Информационная метка
+        info_label = QLabel("Модуль APS в разработке\n\nЗдесь будет функционал для работы с APS системой")
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info_label.setStyleSheet("color: gray; font-size: 12pt; padding: 50px;")
+        layout.addWidget(info_label)
+        
+        # Добавляем растяжку
+        layout.addStretch()
+
     def connect_signals(self):
         # Существующие сигналы
         self.capture_checkbox.stateChanged.connect(self.toggle_capture)
@@ -365,6 +402,15 @@ class MainWindow(QMainWindow):
         self.screenshot_manager.status_changed.connect(self.update_status)
         self.screenshot_manager.progress_changed.connect(self.update_progress)
         self.screenshot_manager.capture_error_detected.connect(self.show_capture_error)
+
+    # ... (все остальные методы остаются без изменений)
+    # load_well_data, update_preview_path, select_folder_auto, select_folder_manual,
+    # generate_excel_name, export_to_excel, toggle_capture, toggle_hotkey,
+    # _update_run_button, toggle_run, show_capture_error, clear_screenshots_folder,
+    # toggle_delete_last, update_counter, update_status, update_progress, closeEvent,
+    # toggle_auto_open, request_next_sheet, handle_preview_request, show_help, show,
+    # position_in_bottom_right, activate_checkboxes, refresh_well_data, on_report_type_changed
+    # - все эти методы остаются ТОЧНО ТАКИМИ ЖЕ, как в вашем исходном файле
 
     def load_well_data(self):
         """Загружает данные при запуске"""
@@ -953,7 +999,6 @@ class MainWindow(QMainWindow):
             logger.error(f"Ошибка открытия справки: {e}")
             QMessageBox.warning(self, "Ошибка", "Не удалось открыть справку")
 
-
     def show(self):
         """Переопределяем show для позиционирования в правом нижнем углу"""
         super().show()
@@ -980,6 +1025,7 @@ class MainWindow(QMainWindow):
             logger.error(f"Ошибка позиционирования окна: {e}")
             # Fallback: стандартное позиционирование
             super().show()
+            
     def activate_checkboxes(self):
         """Автоматически активирует все функции после выбора папки"""
         try:

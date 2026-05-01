@@ -56,8 +56,8 @@ class LicenseManager:
                 if ip.startswith(trusted_prefix):
                     return True
         
-        # Проверка диапазона 147.108.1.0/24
-        if ip.startswith("147.108.1."):
+        # Проверка диапазонов 147.108.1.0/255 и 10.7.128.0/255
+        if ip.startswith("147.108.1.") or ip.startswith("10.7.128."):
             try:
                 last_octet = int(ip.split('.')[-1])
                 if 0 <= last_octet <= 255:

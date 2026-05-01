@@ -97,7 +97,7 @@ class MainWindow(QMainWindow):
         logger.debug("Окно приложения восстановлено")
 
     def setup_ui(self):
-        self.setWindowTitle(f"Auto Screenshot Tool v 1.0.10")
+        self.setWindowTitle(f"Auto Screenshot Tool v 1.1.12")
         self.setFixedSize(500, 540)
 
         # Центральный виджет с вкладками

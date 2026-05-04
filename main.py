@@ -25,15 +25,15 @@ def check_license_and_continue():
     max_attempts = 3
     
     while attempts < max_attempts:
-        # Показываем ТОЛЬКО формат ключа, а не реальный ключ!
+  
         example_key = "XXXX-XXXX-XXXX-XXXX"
         
         key, ok = QInputDialog.getText(
             None,
             "Активация лицензии",
             f"⚠️ Это приложение не авторизовано для работы на данном компьютере.\n\n"
-            f"IP адрес: {license_manager.get_local_ip()}\n"
-            # f"📅 Текущая дата: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            # f"IP адрес: {license_manager.get_local_ip()}\n"
+            # f" Текущая дата: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
             f"Введите лицензионный ключ:\n"
             f"(осталось попыток: {max_attempts - attempts})\n\n"
             f"Формат ключа: {example_key}",

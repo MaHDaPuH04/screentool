@@ -101,3 +101,4 @@ logs/screenshot_tool.log
 *.pyc
 /__pycache__
 /build
+*.json

@@ -102,3 +102,4 @@ logs/screenshot_tool.log
 /__pycache__
 /build
 *.json
+/dist

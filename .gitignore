@@ -97,3 +97,7 @@ logs/screenshot_tool.log
 *.pyc
 *.json
 /dist
+*.pyc
+*.pyc
+/__pycache__
+/build

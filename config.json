@@ -1,15 +1,15 @@
 {
-  "screenshot_quality": 75,
+  "screenshot_quality": 85,
   "screenshot_format": "PNG",
   "min_interval": 0.8,
   "max_screenshots": 1000,
   "window_capture_offset": [
     8,
-    31,
+    1,
     -8,
-    -8
+    -13
   ],
-  "vm_base_ip": "10.172.64",
+  "vm_base_ip": "10.7.128",
   "vm_default_port": 50000,
   "vm_scan_ports": [
     50000,
@@ -31,9 +31,15 @@
     "print screen",
     "insert"
   ],
-  "db_server": "ADVMWD1\\ADVANTAGE2017",
+  "db_server": "TyuMWD212\\ADVANTAGE2017",
   "db_database": "advantage",
   "db_use_windows_auth": true,
+  "db_servers_to_try": [
+    "ADVMWD1\\ADVANTAGE2017",
+    "ADVMWD2\\ADVANTAGE2017",
+    "TyuMWD212\\ADVANTAGE2017"
+  ],
+  "db_connection_timeout": 1,
   "report_types": {
     "1": "PreTIP",
     "2": "PreRun",

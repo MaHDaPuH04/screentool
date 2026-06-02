@@ -578,38 +578,23 @@ class ScreenshotManager(QObject):
         """Обработчик горячей клавиши Delete для удаления последнего скриншота"""
         logger.debug("Клавиша Delete нажата")
         
-        # Проверяем, включен ли режим удаления через главное окно
-        if hasattr(self, 'main_window') and self.main_window:
-            if hasattr(self.main_window, 'delete_last_checkbox') and self.main_window.delete_last_checkbox.isChecked():
-                # ПРОВЕРЯЕМ ЗАДЕРЖКУ
-                current_time = time.time()
-                time_since_last_delete = current_time - self.last_delete_time
-                
-                if time_since_last_delete < self.delete_cooldown:
-                    remaining = self.delete_cooldown - time_since_last_delete
-                    logger.debug(f"Удаление заблокировано, осталось: {remaining:.1f} сек")
-                    self.status_changed.emit(f"⏳ Подождите {remaining:.1f} сек")
-                    return
-
-                logger.info("Удаление последнего скриншота по Delete")
-                threading.Thread(target=self.delete_last_screenshot, daemon=True).start()
-            else:
-                # Если чекбокс выключен, просто игнорируем нажатие Delete
-                logger.debug("Режим удаления отключен - игнорируем Delete")
-                self.status_changed.emit("❌ Включите 'Delete для удаления' в настройках")
-        else:
-            # Если нет доступа к UI, проверяем задержку и удаляем
-            current_time = time.time()
-            time_since_last_delete = current_time - self.last_delete_time
+        # Проверяем, какая вкладка активна
+        if hasattr(self.main_window, 'tab_widget'):
+            current_tab = self.main_window.tab_widget.currentIndex()
             
-            if time_since_last_delete < self.delete_cooldown:
-                remaining = self.delete_cooldown - time_since_last_delete
-                logger.debug(f"Удаление заблокировано, осталось: {remaining:.1f} сек")
-                self.status_changed.emit(f"⏳ Подождите {remaining:.1f} сек")
+            if current_tab == 1:  # APS вкладка
+                # Используем APS логику
+                if hasattr(self.main_window, 'aps_delete_enabled') and self.main_window.aps_delete_enabled:
+                    threading.Thread(target=self.delete_last_screenshot, daemon=True).start()
+                else:
+                    self.status_changed.emit("APS: Включите 'Delete для удаления' в настройках")
                 return
-            
-            logger.info("Удаление последнего скриншота по Delete (без проверки UI)")
+        
+        # Advantage вкладка (индекс 0) или другой
+        if hasattr(self.main_window, 'delete_last_checkbox') and self.main_window.delete_last_checkbox.isChecked():
             threading.Thread(target=self.delete_last_screenshot, daemon=True).start()
+        else:
+            self.status_changed.emit("❌ Включите 'Delete для удаления' в настройках")
 
     def _register_delete_hotkey(self):
         """Регистрирует горячую клавишу Delete"""

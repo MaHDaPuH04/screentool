@@ -16,6 +16,8 @@ from ui_manager import UIManager
 from file_manager import FileManager
 from database import db_manager
 from help_dialog import HelpDialog
+from aps_ui_manager import APSUIManager
+from aps_database import aps_db_manager
 
 
 class MainWindow(QMainWindow):
@@ -32,19 +34,26 @@ class MainWindow(QMainWindow):
         self.excel_exporter = ExcelExporter()
         self.next_sheet_requested = False
         self.export_successful = False
+        self.aps_delete_enabled = False
         
-        # Данные из БД
+        # Данные из БД Advantage
         self.well_data = None
         self.selected_report_key = 2 
-        self.selected_report_type = "PreRun"  # По умолчанию
+        self.selected_report_type = "PreRun"
+        self.report_types = config.report_types  # Сохраняем для APS
         
         # Инициализируем менеджеры
         self.ui_manager = UIManager(self)
         self.file_manager = FileManager()
         
+        # Инициализируем APS менеджер
+        self.aps_manager = APSUIManager(self, self.screenshot_manager)
+        self.aps_manager.excel_exporter = self.excel_exporter
+        
         self.setWindowIcon(QIcon(resource_path('icon.ico')))
         self.setup_ui()
         self.connect_signals()
+        self.connect_aps_signals()
 
         # Подключаем новые сигналы
         self.update_status_signal.connect(self.status_label.setText)
@@ -53,11 +62,11 @@ class MainWindow(QMainWindow):
         self.show_cleanup_dialog_signal.connect(self._show_cleanup_dialog)
         self.screenshot_manager.show_preview_requested.connect(self.handle_preview_request)
 
-        #СИГНАЛ ДЛЯ ПРЕВЬЮ
-        self.screenshot_manager.show_preview_requested.connect(self.handle_preview_request)
-
-        # Загружаем данные из БД при запуске
+        # Загружаем данные из БД Advantage при запуске
         self.load_well_data()
+        
+        # Загружаем данные APS
+        self.aps_manager.load_well_data()
 
     def _unlock_ui(self):
         """Разблокировка UI (вызывается через сигнал)"""
@@ -68,7 +77,6 @@ class MainWindow(QMainWindow):
         if CleanupDialog.show_cleanup_question(self, message):
             self.ui_manager.update_status("Очистка скриншотов...")
 
-            # Очищаем скриншоты
             clear_success, clear_message = self.file_manager.clear_screenshots_folder(self.screenshot_manager)
 
             if clear_success:
@@ -80,10 +88,8 @@ class MainWindow(QMainWindow):
         else:
             self.ui_manager.update_status(f"✅ {message} (скриншоты сохранены)", "color: green;")
 
-        # Всегда разблокируем UI после диалога
         self.ui_manager.unlock_ui_after_operation()
 
-    #Методы управления окном
     def minimize_window(self):
         """Сворачивает окно приложения"""
         self.showMinimized()
@@ -97,7 +103,7 @@ class MainWindow(QMainWindow):
         logger.debug("Окно приложения восстановлено")
 
     def setup_ui(self):
-        self.setWindowTitle(f"Auto Screenshot Tool v 1.1.12")
+        self.setWindowTitle(f"Auto Screenshot Tool v 1.1.14")
         self.setFixedSize(500, 540)
 
         # Центральный виджет с вкладками
@@ -363,24 +369,413 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
     def setup_aps_tab(self):
-        """Настройка вкладки APS (пока пустая)"""
+        """Настройка вкладки APS"""
         layout = QVBoxLayout(self.tab_aps)
+        layout.setSpacing(15)
         layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Заголовок
-        title_label = QLabel("APS Module")
-        title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+
+        # Заголовочная строка с кнопкой справки APS
+        header_layout = QHBoxLayout()
+        title_label = QLabel("APS Screenshot Tool")
+        title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title_label)
+
+        self.help_btn_aps = QPushButton("?")
+        self.help_btn_aps.setFixedSize(30, 30)
+        self.help_btn_aps.setStyleSheet("""
+            QPushButton {
+                background-color: #0000FF;
+                color: white;
+                border: none;
+                border-radius: 15px;
+                font-weight: bold;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background-color: #00BFFF;
+            }
+        """)
+        self.help_btn_aps.setToolTip("Открыть справку APS")
         
-        # Информационная метка
-        info_label = QLabel("Модуль APS в разработке\n\nЗдесь будет функционал для работы с APS системой")
-        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        info_label.setStyleSheet("color: gray; font-size: 12pt; padding: 50px;")
-        layout.addWidget(info_label)
-        
-        # Добавляем растяжку
+        header_layout.addWidget(title_label)
+        header_layout.addWidget(self.help_btn_aps)
+        layout.addLayout(header_layout)
+
+        # Группа настроек
+        settings_group = QGroupBox()
+        settings_layout = QVBoxLayout()
+
+        self.delete_last_checkbox_aps = QCheckBox("Delete для удаления последнего скриншота")
+        self.capture_checkbox_aps = QCheckBox("Включить захват активного окна")
+        self.hotkey_checkbox_aps = QCheckBox("Включить горячую клавишу Insert (Print Screen)")
+        self.auto_open_check_aps = QCheckBox("Автооткрывать Excel после экспорта")
+        self.auto_open_check_aps.setChecked(config.excel_auto_open)
+
+        self.delete_last_checkbox_aps.setVisible(False)
+        self.capture_checkbox_aps.setVisible(False)
+        self.hotkey_checkbox_aps.setVisible(False)
+        self.auto_open_check_aps.setVisible(False)
+
+        self.run_btn_aps = QPushButton("Запустить")
+        self.run_btn_aps.setFixedHeight(42)
+        self.run_btn_aps.setStyleSheet("""
+            QPushButton {
+                background-color: #2A9D8F;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover { opacity: 0.9; }
+            QPushButton:disabled {
+                background-color: #C0C0C0;
+                color: #757575;
+            }
+        """)
+        settings_layout.addWidget(self.run_btn_aps)
+
+        settings_group.setLayout(settings_layout)
+        layout.addWidget(settings_group)
+
+        # Группа для выбора папки (без кнопки "Следующий лист")
+        folder_group = QGroupBox("Папка сохранения")
+        folder_layout = QVBoxLayout()
+
+        report_type_layout = QHBoxLayout()
+        report_type_layout.addWidget(QLabel("Тип отчета:"))
+        self.report_type_combo_aps = QComboBox()
+        for key, value in config.report_types.items():
+            self.report_type_combo_aps.addItem(value, key)
+        report_type_layout.addWidget(self.report_type_combo_aps)
+        folder_layout.addLayout(report_type_layout)
+
+        self.path_preview_label_aps = QLabel("Путь будет создан: ...")
+        self.path_preview_label_aps.setWordWrap(True)
+        self.path_preview_label_aps.setStyleSheet("color: gray; font-style: italic; font-size: 9pt;")
+        folder_layout.addWidget(self.path_preview_label_aps)
+
+        buttons_row_layout = QHBoxLayout()
+
+        self.auto_folder_btn_aps = QPushButton("Подтвердить выбор папки")
+        self.auto_folder_btn_aps.setStyleSheet("""
+            QPushButton {
+                background-color: #696969;
+                color: white;
+                border: none;
+                padding: 6px;
+                border-radius: 4px;
+                font-size: 9pt;
+            }
+            QPushButton:hover {
+                background-color: #C0C0C0;
+            }
+        """)
+        self.auto_folder_btn_aps.setToolTip("Создать папку автоматически на основе данных APS БД")
+
+        self.manual_folder_btn_aps = QPushButton("Выбрать вручную")
+        self.manual_folder_btn_aps.setStyleSheet("""
+            QPushButton {
+                background-color: #696969;
+                color: white;
+                border: none;
+                padding: 6px;
+                border-radius: 4px;
+                font-size: 9pt;
+            }
+            QPushButton:hover {
+                background-color: #C0C0C0;
+            }
+        """)
+        self.manual_folder_btn_aps.setToolTip("Выбрать папку вручную")
+
+        buttons_row_layout.addWidget(self.auto_folder_btn_aps)
+        buttons_row_layout.addWidget(self.manual_folder_btn_aps)
+
+        folder_layout.addLayout(buttons_row_layout)
+
+        self.folder_label_aps = QLabel("Папка сохранения: не выбрана")
+        self.folder_label_aps.setWordWrap(True)
+        self.folder_label_aps.setStyleSheet("font-size: 9pt;")
+        folder_layout.addWidget(self.folder_label_aps)
+
+        folder_group.setLayout(folder_layout)
+        layout.addWidget(folder_group)
+
+        self.counter_label_aps = QLabel("Сделано скриншотов: 0")
+        layout.addWidget(self.counter_label_aps)
+
+        self.group_label_aps = QLabel("Текущий лист: poll+calib")
+        self.group_label_aps.setStyleSheet("color: #2A9D8F; font-weight: bold;")
+        layout.addWidget(self.group_label_aps)
+
+        buttons_group = QGroupBox("Действия")
+        buttons_layout = QHBoxLayout()
+
+        self.excel_btn_aps = QPushButton("Экспорт в Excel")
+        self.excel_btn_aps.setStyleSheet("""
+            QPushButton {
+                background-color: #696969;
+                color: white;
+                border: none;
+                padding: 8px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #C0C0C0;
+            }
+            QPushButton:disabled {
+                background-color: #C0C0C0;
+                color: #757575;
+            }
+        """)
+        self.excel_btn_aps.setToolTip("Экспорт скриншотов APS в Excel")
+
+        self.vm_btn_aps = QPushButton("Очистить Папку")
+        self.vm_btn_aps.setStyleSheet("""
+            QPushButton {
+                    background-color: #C0C0C0;
+                    color: white;
+                    border: none;
+                    padding: 8px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #C0C0C0;
+                }
+                QPushButton:disabled {
+                    background-color: #C0C0C0;
+                    color: #757575;
+                }
+        """)
+        self.vm_btn_aps.setEnabled(False)
+        self.vm_btn_aps.setToolTip("Сначала выполните экспорт в Excel")
+                                     
+        buttons_layout.addWidget(self.excel_btn_aps)
+        buttons_layout.addWidget(self.vm_btn_aps)
+    
+        buttons_layout.setStretchFactor(self.excel_btn_aps, 1)
+        buttons_layout.setStretchFactor(self.vm_btn_aps, 1)
+
+        buttons_group.setLayout(buttons_layout)
+        layout.addWidget(buttons_group)
+
+        self.progress_bar_aps = QProgressBar()
+        self.progress_bar_aps.setVisible(False)
+        layout.addWidget(self.progress_bar_aps)
+
+        self.status_label_aps = QLabel("APS: Готов к работе")
+        self.status_label_aps.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.status_label_aps)
+
         layout.addStretch()
+
+    def connect_signals(self):
+        """Подключает сигналы для вкладки Advantage"""
+        self.capture_checkbox.stateChanged.connect(self.toggle_capture)
+        self.hotkey_checkbox.stateChanged.connect(self.toggle_hotkey)
+        self.delete_last_checkbox.stateChanged.connect(self.toggle_delete_last)
+        self.manual_folder_btn.clicked.connect(self.select_folder_manual)
+        self.auto_folder_btn.clicked.connect(self.select_folder_auto)
+        self.excel_btn.clicked.connect(self.export_to_excel)
+        self.vm_btn.clicked.connect(self.clear_screenshots_folder)
+        self.auto_open_check.stateChanged.connect(self.toggle_auto_open)
+        self.next_sheet_btn.clicked.connect(self.request_next_sheet)
+        self.help_btn.clicked.connect(self.show_help)
+        self.run_btn.clicked.connect(self.toggle_run)
+        self.report_type_combo.currentIndexChanged.connect(self.on_report_type_changed)
+
+        self.screenshot_manager.screenshot_taken.connect(self.update_counter)
+        self.screenshot_manager.status_changed.connect(self.update_status)
+        self.screenshot_manager.progress_changed.connect(self.update_progress)
+        self.screenshot_manager.capture_error_detected.connect(self.show_capture_error)
+
+    def connect_aps_signals(self):
+        """Подключает сигналы для вкладки APS"""
+        # Чекбоксы APS
+        self.capture_checkbox_aps.stateChanged.connect(self.on_aps_capture_toggled)
+        self.hotkey_checkbox_aps.stateChanged.connect(self.on_aps_hotkey_toggled)
+        self.delete_last_checkbox_aps.stateChanged.connect(self.on_aps_delete_toggled)
+        self.auto_open_check_aps.stateChanged.connect(self.toggle_auto_open_aps)
+        
+        # Кнопки APS
+        self.manual_folder_btn_aps.clicked.connect(self.aps_manager.select_folder_manual)
+        self.auto_folder_btn_aps.clicked.connect(self.aps_manager.select_folder_auto)
+        self.excel_btn_aps.clicked.connect(self.aps_manager.export_to_excel)
+        self.vm_btn_aps.clicked.connect(self.clear_screenshots_folder_aps)
+        self.help_btn_aps.clicked.connect(self.show_help_aps)
+        self.run_btn_aps.clicked.connect(self.aps_manager.toggle_run)
+        self.report_type_combo_aps.currentIndexChanged.connect(self.aps_manager.on_report_type_changed)
+        
+        # Подключаем обновление счетчика для APS
+        self.screenshot_manager.screenshot_taken.connect(self.update_counter_aps)
+        
+        # ВАЖНО: Подключаем удаление и другие сигналы для APS
+        # Для удаления используем тот же метод, но с проверкой активной вкладки
+        self.screenshot_manager.delete_last_signal = self.on_delete_pressed_aps
+
+    def on_aps_capture_toggled(self, state):
+        """Обработчик для чекбокса захвата APS"""
+        if state == Qt.CheckState.Checked.value:
+            if not self.screenshot_manager.save_path:
+                QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
+                self.capture_checkbox_aps.setChecked(False)
+                return
+            self.screenshot_manager.start_capture()
+            self.ui_manager.update_status("APS: Захват активного окна включен", "color: green;")
+        else:
+            self.screenshot_manager.stop_capture()
+            self.ui_manager.update_status("APS: Захват активного окна выключен", "color: gray;")
+
+    def on_aps_hotkey_toggled(self, state):
+        """Обработчик для чекбокса горячих клавиш APS"""
+        if state == Qt.CheckState.Checked.value:
+            if not self.screenshot_manager.save_path:
+                QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
+                self.hotkey_checkbox_aps.setChecked(False)
+                return
+            self.screenshot_manager.enable_hotkey()
+            self.ui_manager.update_status("APS: Горячие клавиши включены", "color: green;")
+        else:
+            self.screenshot_manager.disable_hotkey()
+            self.ui_manager.update_status("APS: Горячие клавиши выключены", "color: gray;")
+
+    def on_aps_delete_toggled(self, state):
+        """Обработчик для чекбокса удаления APS"""
+        if state == Qt.CheckState.Checked.value:
+            # Устанавливаем флаг, что удаление разрешено для APS
+            self.aps_delete_enabled = True
+            self.ui_manager.update_status("APS: Режим 'Delete для удаления' включен", "color: blue;")
+            logger.info("APS: Включен режим удаления последнего скриншота по Delete")
+        else:
+            self.aps_delete_enabled = False
+            self.ui_manager.update_status("APS: Режим 'Delete для удаления' выключен", "color: gray;")
+            logger.info("APS: Выключен режим удаления последнего скриншота по Delete")
+
+    def on_delete_pressed_aps(self):
+        """Обработчик нажатия Delete для APS"""
+        # Проверяем, активна ли вкладка APS и включен ли режим удаления
+        current_tab = self.tab_widget.currentIndex()
+        if current_tab == 1:  # APS вкладка (индекс 1)
+            if hasattr(self, 'aps_delete_enabled') and self.aps_delete_enabled:
+                # Проверяем задержку
+                import time
+                current_time = time.time()
+                if hasattr(self.screenshot_manager, 'last_delete_time'):
+                    time_since_last = current_time - self.screenshot_manager.last_delete_time
+                    if time_since_last < self.screenshot_manager.delete_cooldown:
+                        remaining = self.screenshot_manager.delete_cooldown - time_since_last
+                        self.ui_manager.update_status(f"APS: Подождите {remaining:.1f} сек перед следующим удалением", "color: orange;")
+                        return
+                
+                logger.info("APS: Удаление последнего скриншота по Delete")
+                success = self.screenshot_manager.delete_last_screenshot()
+                if success:
+                    self.ui_manager.update_status("APS: Скриншот удален", "color: green;")
+                else:
+                    self.ui_manager.update_status("APS: Нечего удалять", "color: orange;")
+            else:
+                self.ui_manager.update_status("APS: Включите 'Delete для удаления' в настройках", "color: orange;")
+
+    def toggle_auto_open_aps(self, state):
+        """Сохраняет настройку автооткрытия Excel для APS"""
+        is_enabled = state == Qt.CheckState.Checked.value
+        config.excel_auto_open = is_enabled
+        config.save_to_file()
+        
+        # Также передаем настройку в aps_manager
+        if hasattr(self.aps_manager, 'excel_auto_open'):
+            self.aps_manager.excel_auto_open = is_enabled
+        
+        self.ui_manager.update_status(
+            f"APS: Автооткрытие Excel {'включено' if is_enabled else 'выключено'}",
+            "color: green;" if is_enabled else "color: gray;"
+        )
+        logger.info(f"APS: Настройка автооткрытия Excel изменена: {is_enabled}")
+
+    def update_counter_aps(self, count):
+        """Обновляет счетчик APS"""
+        self.counter_label_aps.setText(f"Сделано скриншотов: {count}")
+        if count > 0 and self.screenshot_manager.save_path:
+            self.group_label_aps.setText(f"Текущий лист: {self.screenshot_manager.current_group}")
+        
+        # Сбрасываем флаг успешного экспорта при новом скриншоте
+        self.aps_manager.export_successful = False
+        self.vm_btn_aps.setEnabled(False)
+        
+    def clear_screenshots_folder_aps(self):
+        """Очищает папку от скриншотов APS"""
+        if not self.screenshot_manager.save_path:
+            QMessageBox.warning(self, "Ошибка", "Сначала выберите папку для сохранения!")
+            return
+        
+        if not self.aps_manager.export_successful:
+            QMessageBox.warning(
+                self, 
+                "Требуется экспорт", 
+                "Сначала выполните успешный экспорт в Excel APS!\n"
+                "Кнопка очистки станет доступной после создания Excel файла."
+            )
+            return
+        
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение",
+            "Вы уверены, что хотите очистить все папки APS со скриншотами?\n"
+            "Все группы (poll+calib, TIP, verif, TM, PDT, press_1...) будут удалены.\n\n",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        clear_success, clear_message = self.file_manager.clear_screenshots_folder(self.screenshot_manager)
+        
+        if clear_success:
+            self.group_label_aps.setText("Папка не создана (нажмите 'Запустить')")
+            self.counter_label_aps.setText("Сделано скриншотов: 0")
+            
+            self.aps_manager.export_successful = False
+            self.vm_btn_aps.setEnabled(False)
+            
+            # ✅ МЕНЯЕМ СТИЛЬ КНОПКИ НА НЕАКТИВНЫЙ
+            self.vm_btn_aps.setStyleSheet("""
+                QPushButton {
+                    background-color: #C0C0C0;
+                    color: #757575;
+                    border: none;
+                    padding: 8px;
+                    border-radius: 4px;
+                }
+            """)
+            self.vm_btn_aps.setToolTip("Сначала выполните экспорт в Excel")
+            
+            self.ui_manager.update_status(f"APS: ✅ {clear_message}", "color: green;")
+            QMessageBox.information(self, "Успех APS", clear_message)
+        else:
+            self.ui_manager.update_status(f"APS: ❌ {clear_message}", "color: red;")
+            QMessageBox.warning(self, "Ошибка APS", clear_message)
+
+    def toggle_auto_open_aps(self, state):
+        """Сохраняет настройку автооткрытия Excel для APS"""
+        is_enabled = state == Qt.CheckState.Checked.value
+        config.excel_auto_open = is_enabled
+        config.save_to_file()
+        self.ui_manager.update_status(
+            f"APS: Автооткрытие Excel {'включено' if is_enabled else 'выключено'}",
+            "color: green;" if is_enabled else "color: gray;"
+        )
+
+    def show_help_aps(self):
+        """Показывает диалог справки APS (пока стандартная)"""
+        try:
+            help_dialog = HelpDialog(self)
+            help_dialog.setWindowTitle("Справка - APS Module")
+            help_dialog.show()
+        except Exception as e:
+            logger.error(f"Ошибка открытия справки APS: {e}")
+            QMessageBox.warning(self, "Ошибка", "Не удалось открыть справку APS")
 
     def connect_signals(self):
         # Существующие сигналы
@@ -403,14 +798,6 @@ class MainWindow(QMainWindow):
         self.screenshot_manager.progress_changed.connect(self.update_progress)
         self.screenshot_manager.capture_error_detected.connect(self.show_capture_error)
 
-    # ... (все остальные методы остаются без изменений)
-    # load_well_data, update_preview_path, select_folder_auto, select_folder_manual,
-    # generate_excel_name, export_to_excel, toggle_capture, toggle_hotkey,
-    # _update_run_button, toggle_run, show_capture_error, clear_screenshots_folder,
-    # toggle_delete_last, update_counter, update_status, update_progress, closeEvent,
-    # toggle_auto_open, request_next_sheet, handle_preview_request, show_help, show,
-    # position_in_bottom_right, activate_checkboxes, refresh_well_data, on_report_type_changed
-    # - все эти методы остаются ТОЧНО ТАКИМИ ЖЕ, как в вашем исходном файле
 
     def load_well_data(self):
         """Загружает данные при запуске"""
